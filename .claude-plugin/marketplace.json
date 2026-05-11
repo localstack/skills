@@ -1,0 +1,18 @@
+{
+  "name": "localstack-dev",
+  "description": "Development marketplace for LocalStack AI skills",
+  "owner": {
+    "name": "LocalStack"
+  },
+  "plugins": [
+    {
+      "name": "localstack",
+      "description": "AI skills for developing and testing cloud applications against LocalStack — covering service lifecycle, infrastructure deployment, policy analysis, state management, log analysis, and extensions.",
+      "version": "1.0.0",
+      "source": "./",
+      "author": {
+        "name": "LocalStack"
+      }
+    }
+  ]
+}

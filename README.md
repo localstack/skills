@@ -1,6 +1,6 @@
 # LocalStack AI Skills
 
-AI Agent Skills for developing AWS applications against [LocalStack](https://localstack.cloud) - the local cloud development platform.
+AI Agent Skills for developing and testing cloud applications against [LocalStack](https://localstack.cloud) - the local cloud development platform.
 
 ## Overview
 
@@ -16,6 +16,21 @@ This repository contains a collection of AI skills designed to help developers w
 | [logs-analysis](skills/logs-analysis/) | Analyze LocalStack logs, identify errors, and debug issues |
 | [iam-policy-analyzer](skills/iam-policy-analyzer/) | Analyze IAM policies and auto-generate least-privilege permissions |
 | [localstack-extensions](skills/localstack-extensions/) | Manage LocalStack extensions and plugins |
+
+## Installation
+
+### Via the official Claude Code marketplace
+
+```bash
+claude plugin install localstack
+```
+
+### Via the LocalStack standalone marketplace
+
+```bash
+claude plugin marketplace add localstack/skills
+claude plugin install localstack@localstack-dev
+```
 
 ## Prerequisites
 
