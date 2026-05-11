@@ -19,12 +19,6 @@ This repository contains a collection of AI skills designed to help developers w
 
 ## Installation
 
-### Via the official Claude Code marketplace
-
-```bash
-claude plugin install localstack
-```
-
 ### Via the LocalStack standalone marketplace
 
 ```bash
