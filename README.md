@@ -16,6 +16,7 @@ This repository contains a collection of AI skills designed to help developers w
 | [logs-analysis](skills/logs-analysis/) | Analyze LocalStack logs, identify errors, and debug issues |
 | [iam-policy-analyzer](skills/iam-policy-analyzer/) | Analyze IAM policies and auto-generate least-privilege permissions |
 | [localstack-extensions](skills/localstack-extensions/) | Manage LocalStack extensions and plugins |
+| [engineering-digest](skills/engineering-digest/) | Compile LocalStack's bi-weekly Engineering Digest from Notion and Slack sources and draft the #engineering post |
 
 ## Installation
 
