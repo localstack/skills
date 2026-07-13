@@ -47,8 +47,13 @@ via `Engagement = 'former'`). See the "Resolving mentions" section in
 | `#random` | `CM18Z8KMJ` |
 | `#prj-eng-digest` (retro / process notes) | `C08PEAEU9JP` |
 
-Resolve `#squad-*`, `#celebrations`, and any others at runtime with
+Resolve `#squad-*`, `#celebrations`, `#support-aws` / `#support-saas` /
+`#support-snowflake` (used by Deal Makers, §9), and any others at runtime with
 `slack_search_channels`.
+
+HubSpot and Linear have no fixed IDs here — they are reached through their MCP
+tools (`search_crm_objects`, `list_customers`, `get_issue`, …). The closed-won
+deal-stage and Renewals-pipeline IDs that Deal Makers needs live in §9.
 
 ## 0. Find the last issue and the window (from Slack)
 
@@ -225,6 +230,88 @@ the section (it is fine to omit).
 
 Sources: `#random` (`CM18Z8KMJ`), `#engineering`, watercooler topics, a fun
 link. **Do not choose yourself** — see the protocol in `references/style.md`.
+
+## 9. Deal Makers
+
+Celebrates recent engineering work that helped close deals. In the **published
+digest this section appears just before Team Movements** (numbered 9 here only
+because it is the last source to gather; see the section order in
+`references/style.md`).
+
+Unlike every other section, this is not a single Notion/Slack query but a
+cross-tool investigation. It is powered by **Bart's
+`closed-won-engineering-impact-report` skill**, whose one question is: "did
+engineering's work help close this deal?" Two ways to run it:
+
+1. **Preferred — invoke the skill directly** if it is available in your run
+   environment, scoped to the digest window (see below). Take its
+   Strong/Some-signal accounts as the section's raw material.
+2. **Replicate its steps** with the MCP tools the digest already has (HubSpot,
+   Linear, Slack; Gmail/Notion if connected). The digest environment exposes the
+   same tools the skill uses, so this is a faithful fallback.
+
+**Window.** Use the digest's true ~2-week window (§0), *not* the skill's default
+trailing 14/30 days. Filter closed-won deals by close date within that window.
+
+### Step A — closed-won deals from HubSpot
+
+Use `search_crm_objects` (**not** `query_crm_data` — it needs a
+reporting-base-read scope this workspace lacks and will fail). Filter deals by:
+
+- **Close date** within the digest window.
+- **Deal stage** in the closed-won set across all pipelines:
+  `["closedwon","261389503","124389608","854377409","221862367","261389519","221862369","854835683"]`
+
+Then **exclude pure renewals**: drop a deal if its pipeline is the Renewals
+pipeline (`"47258352"`) **or** its `type` property is empty/unset. Keep deals
+typed **New Business, Upsell, Cross-Sell, or Paid PoC**. For each surviving deal,
+resolve the associated company via `associatedWith` to get a clean company name +
+domain to search downstream. Keep the HubSpot deal URL — it is a citable source.
+
+### Step B — engineering signal, per company
+
+For every surviving company, check **all** of these (weak signals from several
+sources combine into a stronger verdict than one alone — don't stop at the first
+hit):
+
+- **Linear** — `list_customers` with `includeNeeds:true`, matched by domain,
+  surfaces linked issues/needs. `get_issue` on anything relevant to confirm it
+  actually shipped (state, PR links, resolution date). A fixed bug shipped
+  shortly before close date is strong evidence; an open, unresolved feature
+  request is weak. Keep the Linear issue URL + any linked GitHub PR.
+- **Slack** — `slack_search_public_and_private` on the company name and domain,
+  both scoped to `#support-aws` / `#support-saas` / `#support-snowflake` **and**
+  unscoped (engineers help in deal-specific/account channels too). Use
+  `include_context:false` and a modest `limit` (big threads blow the token
+  budget). Keep the message `Permalink`.
+- **Gmail** — `search_threads` with e.g. `(from:<domain> OR to:<domain>)
+  newer_than:180d` to catch technical correspondence that reached engineering.
+- **Notion** — search the "Product / Engineering / Technical GTM Sync" notes for
+  the company name in the last 2-3 meeting entries for a technical win / blocker
+  resolved.
+
+### Step C — classify, then distill
+
+Only two verdicts survive; everything else is dropped (don't list "no signal"
+accounts):
+
+- **Strong signal** — a specific, confirmed engineering deliverable (shipped
+  fix, PR, or documented technical recommendation) with timing that plausibly
+  influenced the close.
+- **Some signal** — real but weaker evidence: an open Linear issue with engineer
+  participation, a pre-sale Slack thread where an engineer answered a technical
+  question, or a Notion mention without a confirmed resolution.
+
+For the digest, lead with Strong-signal deals. **Credit the engineers by name**
+(resolve to Slack `<@USERID>` mentions via Who's Who, §Key IDs). Link the
+underlying resource **directly** — HubSpot deal, GitHub PR, Linear issue, or
+Slack thread permalink — regardless of whether the deal was announced elsewhere;
+`#engineering` is an internal channel, so naming the customer and deal is fine.
+See "Deal Makers formatting" in `references/style.md` for the bullet shape.
+
+**If nobody had signal in the window, drop the section** (same rule as Team
+Movements). If HubSpot or Linear is not connected, skip it and flag to the user
+that Deal Makers could not be compiled.
 
 ## Fallbacks
 

@@ -3,9 +3,10 @@ name: engineering-digest
 description: >-
   Create LocalStack's bi-weekly Engineering Digest. Use when asked to write,
   draft, compile, or "do" the (next) engineering digest. Gathers RFCs,
-  decisions, releases, demos, team movements and news from Notion databases and
-  Slack, then drafts the post directly in Slack for #engineering. Draft-first:
-  never sends to Slack without explicit confirmation.
+  decisions, releases, demos, team movements, deal-impact wins and news from
+  Notion databases, Slack, HubSpot and Linear, then drafts the post directly in
+  Slack for #engineering. Draft-first: never sends to Slack without explicit
+  confirmation.
 ---
 
 # Engineering Digest
@@ -29,8 +30,9 @@ channels. Never include anything not already shared in its proper channel.
    `#engineering` is a hard gate** that needs explicit user confirmation each
    run. Prepare it as a Slack draft; stop and hand control back.
 2. **Every bullet links to a verifiable source.** Notion page, Slack permalink,
-   GitHub release, or blog post. If you cannot find a source, drop the bullet.
-   Do not invent, infer, or embellish. Factual correctness beats completeness.
+   GitHub release/PR, HubSpot deal, Linear issue, or blog post. If you cannot
+   find a source, drop the bullet. Do not invent, infer, or embellish. Factual
+   correctness beats completeness.
 3. **You do not pick "A Byte of Fun."** Ask the user; offer 2-3 candidates as
    fallback. The user has final say (see `references/style.md`).
 4. **Write like a human, not an AI.** No em dashes. Avoid "not just X but Y",
@@ -46,6 +48,11 @@ channels. Never include anything not already shared in its proper channel.
   `notion-fetch` / `notion-search` work (schemas + relevance guesses, not full
   row sets). Test early with a trivial query; if it fails, see the fallback in
   `references/sources.md` before continuing.
+- **Deal Makers needs HubSpot + Linear MCP** (and ideally Gmail + Notion). It is
+  powered by the `closed-won-engineering-impact-report` skill (see
+  `references/sources.md` §9): run that skill scoped to the digest window, or
+  replicate its documented steps with the tools above. If HubSpot/Linear are not
+  connected, skip the section rather than guessing.
 
 ## Workflow
 
@@ -74,9 +81,17 @@ Prioritize the newest for tone and structure; the format evolves.
 
 Run the queries in `references/sources.md`, window-filtered. Sections:
 RFCs (Incubator + Decision Register) · News & Updates · `#released` ·
-How we're doing things · Decisions made · Demos · Team Movements · A Byte of Fun.
-Collect a source link (Slack permalink, Notion URL, GitHub/blog link) for every
-candidate bullet as you go.
+How we're doing things · Decisions made · Demos · Deal Makers · Team Movements ·
+A Byte of Fun. Collect a source link (Slack permalink, Notion URL, GitHub/blog
+link, HubSpot deal, Linear issue) for every candidate bullet as you go.
+
+**Deal Makers is different from the other sections.** It is not a Notion/Slack
+query but a cross-tool investigation: run the `closed-won-engineering-impact-report`
+skill (Bart's) scoped to the digest window, or replicate its steps
+(`references/sources.md` §9). Only accounts with real "Strong" or "Some" signal
+of engineering impact make the cut; celebrate the engineering work and credit
+the people, linking the underlying resource (HubSpot deal, GitHub PR, Linear
+issue, Slack thread) directly. Skip the section if HubSpot/Linear are absent.
 
 ### 4. Draft the content
 
@@ -108,9 +123,10 @@ this is part of the digest's process.
 ## References
 
 - `references/sources.md` — every source: how to find the last issue in Slack,
-  Notion data-source IDs, exact SQL, window filters, Slack channel IDs, and
-  fallbacks for the two hard cases (DB-query plan gate; demos not being
-  SQL-date-filterable).
+  Notion data-source IDs, exact SQL, window filters, Slack channel IDs, the
+  Deal Makers cross-tool workflow (§9), and fallbacks for the hard cases
+  (DB-query plan gate; demos not being SQL-date-filterable).
 - `references/style.md` — section order, tone rules, Slack emoji, mentions,
-  demo formatting, Byte of Fun protocol, Slack posting mechanics.
+  demo formatting, Deal Makers formatting, Byte of Fun protocol, Slack posting
+  mechanics.
 - `references/examples.md` — two full recent issues as gold-standard output.

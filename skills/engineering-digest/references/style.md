@@ -32,11 +32,17 @@ Always this order (skip a section only if it is genuinely empty for the window):
    the **reasoning / rationale in one or more sub-bullets** beneath it, rather
    than trailing the decision line. See the shape below.
 7. 📽️ **Demos and other cool things to watch**
-8. 👥 **Team Movements** — only people whose change has **already taken effect**
+8. 🤝 **Deal Makers** — recent engineering work that helped close a deal. Powered
+   by the `closed-won-engineering-impact-report` skill (see `references/sources.md`
+   §9). One bullet per deal, celebrating the eng work and **crediting the people**,
+   linking the underlying resource (HubSpot deal, GitHub PR, Linear issue, Slack
+   thread) directly. Only accounts with confirmed engineering signal appear; drop
+   the section if there were none in the window (or if HubSpot/Linear is absent).
+9. 👥 **Team Movements** — only people whose change has **already taken effect**
    in the window. Do **not** list someone who has not yet started (a future or
    tentative start date); mention the hire in News if it is already announced,
    and hold the Team Movements line until they have actually joined.
-9. 🛝 **A Byte of Fun** — always closes the digest.
+10. 🛝 **A Byte of Fun** — always closes the digest.
 
 In a Slack message there are no real heading levels: each section header is a
 **bold line led by its emoji** (e.g. `*:judge: Decisions made*`), followed by the
@@ -77,9 +83,9 @@ The full Slack shortcode set works (`:rolled_up_newspaper:`, `:ask:`,
 `:snowflake:`, …). Section-header emoji seen in real issues:
 
 RFCs `:ask:`, News `:newspaper:`, released `:partying_face:`, how-we-do
-`:building_construction:`, decisions `:judge:`, demos `:film_projector:`, team
-`:busts_in_silhouette:`, fun `:playground_slide:`. Title uses
-`:fyi: :rolled_up_newspaper: … :rolled_up_newspaper: :fyi:`.
+`:building_construction:`, decisions `:judge:`, demos `:film_projector:`, deal
+makers `:handshake:`, team `:busts_in_silhouette:`, fun `:playground_slide:`.
+Title uses `:fyi: :rolled_up_newspaper: … :rolled_up_newspaper: :fyi:`.
 
 ## Links and mentions (Slack)
 
@@ -148,6 +154,33 @@ goes in sub-bullet(s) underneath, not trailing the headline:
 ```
 
 Keep the headline short; push the "because…" into the sub-bullet.
+
+## Deal Makers formatting
+
+The point is to celebrate the **engineering** contribution, not to report sales
+numbers. Lead with Strong-signal deals, then Some-signal ones.
+
+- One bullet per deal/account. Shape: `:handshake: **<Customer>** - <the eng work
+  that helped close it, in one line>. <@contributor> [+ mentions]. [deal](hubspot)
+  · [PR](github) · [issue](linear).`
+- **Credit the people.** Resolve contributors (Linear assignee, the engineer in
+  the Slack thread, PR author) to Slack `<@USERID>` mentions via Who's Who
+  (`references/sources.md` §Key IDs). This section is about giving the team a
+  shout-out, so names matter more than in other sections.
+- **Link the underlying resource directly** — HubSpot deal, GitHub PR, Linear
+  issue, or Slack thread permalink — even if the deal was never announced in a
+  channel. `#engineering` is internal, so naming the customer and deal is fine;
+  cite whatever concretely evidences the engineering impact.
+- Say *what engineering did* and *why it mattered to the deal* (e.g. "shipped the
+  X fix that unblocked their PoC", "answered the Y architecture question pre-sale
+  that closed the technical evaluation"). No revenue figures, no hype adverbs, no
+  em dashes — same tone rules as the rest of the digest.
+- If there was no confirmed engineering signal on any closed-won deal in the
+  window, **omit the section** rather than padding it.
+
+```
+• :handshake: **<Customer>** - <one line: the shipped fix / recommendation and how it helped close>. <@U…> [<@U…>]. [deal](hubspot-url) · [PR](github-url) · [Linear](linear-url).
+```
 
 ## A Byte of Fun — protocol
 

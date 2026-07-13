@@ -12,6 +12,12 @@ Note the discipline: every bullet ends in a link; broad announcements link one
 "full announcement" rather than naming everyone; demos are grouped under their
 session; the intro carries a little human voice; there are no em dashes.
 
+> **Deal Makers** (the `:handshake:` section, between Demos and Team Movements)
+> is newer than these two issues, so neither shows it yet. Follow "Deal Makers
+> formatting" in `references/style.md` and the §9 workflow in
+> `references/sources.md` for its shape until a published issue can serve as the
+> example here.
+
 ---
 
 ## Issue #29 (posted 2026-06-24, #engineering)
