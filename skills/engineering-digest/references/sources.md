@@ -234,8 +234,8 @@ link. **Do not choose yourself** — see the protocol in `references/style.md`.
 ## 9. Deal Makers
 
 Celebrates recent engineering work that helped close deals. In the **published
-digest this section appears just before Team Movements** (numbered 9 here only
-because it is the last source to gather; see the section order in
+digest this section leads the issue, right after the intro** (numbered 9 here
+only because it is the last source to gather; see the section order in
 `references/style.md`).
 
 Unlike every other section, this is not a single Notion/Slack query but a

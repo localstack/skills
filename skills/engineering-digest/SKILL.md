@@ -83,7 +83,10 @@ Run the queries in `references/sources.md`, window-filtered. Sections:
 RFCs (Incubator + Decision Register) · News & Updates · `#released` ·
 How we're doing things · Decisions made · Demos · Deal Makers · Team Movements ·
 A Byte of Fun. Collect a source link (Slack permalink, Notion URL, GitHub/blog
-link, HubSpot deal, Linear issue) for every candidate bullet as you go.
+link, HubSpot deal, Linear issue) for every candidate bullet as you go. This is
+the **gather** order; **Deal Makers leads the published digest** (right after the
+intro) even though it is the last section to gather. See the published section
+order in `references/style.md`.
 
 **Deal Makers is different from the other sections.** It is not a Notion/Slack
 query but a cross-tool investigation: run the `closed-won-engineering-impact-report`

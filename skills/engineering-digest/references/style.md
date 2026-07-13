@@ -12,32 +12,34 @@ Always this order (skip a section only if it is genuinely empty for the window):
    Engineering Digest! ..." one-liner. Do **not** link "Engineering Digest" (no
    per-issue or landing-page link in the intro). Add a short human aside if apt
    (e.g. "there's a LOT going on :rocket:").
-2. `:ask:` **RFCs - Requests for Comments** — Incubator + open Decision Register
+2. 🤝 **Deal Makers** — recent engineering work that helped close a deal. **Leads
+   the digest** (right after the intro) to give the team's deal-closing work top
+   billing. Powered by the `closed-won-engineering-impact-report` skill (see
+   `references/sources.md` §9). One bullet per deal, celebrating the eng work and
+   **crediting the people**, linking the underlying resource (HubSpot deal, GitHub
+   PR, Linear issue, Slack thread) directly. Lead with Strong-signal deals, then
+   Some-signal ones. Only accounts with confirmed engineering signal appear; drop
+   the section if there were none in the window (or if HubSpot/Linear is absent).
+3. `:ask:` **RFCs - Requests for Comments** — Incubator + open Decision Register
    items. Close open RFCs with "Your input is welcome!" where natural. Include
    **every** engineering-relevant open item in the window (Incubator "Open for
    comments" and Decision Register "In Discussion"); do not silently drop one for
    brevity. If you think the section is getting long, ask the user rather than
    cutting.
-3. 📰 **News & Updates** — company + engineering news. **No releases here** (they
+4. 📰 **News & Updates** — company + engineering news. **No releases here** (they
    go in `#released` only), so nothing about shipped or upcoming versions.
-4. 🥳 **`#released`** — the only place releases appear. If a single product
+5. 🥳 **`#released`** — the only place releases appear. If a single product
    shipped **multiple releases** in the window, list only the **last** one (keep
    distinct products separate). Close the section with the callout on the line
    **immediately after** the last release bullet (no blank line between them),
    and render it **italic**: *Haven't seen your contribution here?
    [Post in `#released`](https://localstack-cloud.slack.com/archives/C07JJQVFY86)!*
-5. 🏗️ **How we're doing things**
-6. 🧑‍⚖️ **Decisions made** — one top-level bullet per decision (the decision
+6. 🏗️ **How we're doing things**
+7. 🧑‍⚖️ **Decisions made** — one top-level bullet per decision (the decision
    itself, linked, with the `(Decision Register · Decided[ <date>])` tag). Put
    the **reasoning / rationale in one or more sub-bullets** beneath it, rather
    than trailing the decision line. See the shape below.
-7. 📽️ **Demos and other cool things to watch**
-8. 🤝 **Deal Makers** — recent engineering work that helped close a deal. Powered
-   by the `closed-won-engineering-impact-report` skill (see `references/sources.md`
-   §9). One bullet per deal, celebrating the eng work and **crediting the people**,
-   linking the underlying resource (HubSpot deal, GitHub PR, Linear issue, Slack
-   thread) directly. Only accounts with confirmed engineering signal appear; drop
-   the section if there were none in the window (or if HubSpot/Linear is absent).
+8. 📽️ **Demos and other cool things to watch**
 9. 👥 **Team Movements** — only people whose change has **already taken effect**
    in the window. Do **not** list someone who has not yet started (a future or
    tentative start date); mention the hire in News if it is already announced,
