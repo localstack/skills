@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "localstack",
+  "version": "1.0.0",
+  "description": "Portable agent skills for developing and testing cloud applications with LocalStack through lstk.",
+  "author": {
+    "name": "LocalStack"
+  },
+  "homepage": "https://github.com/localstack/skills",
+  "repository": "https://github.com/localstack/skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "localstack",
+    "cloud",
+    "aws",
+    "azure",
+    "snowflake",
+    "iac",
+    "terraform",
+    "cdk",
+    "testing",
+    "local-development"
+  ]
+}
