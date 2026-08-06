@@ -1,135 +1,102 @@
 ---
 name: localstack-extensions
-description: Manage LocalStack Extensions. Use when users want to install, uninstall, list, or configure LocalStack extensions, or develop custom extensions to extend LocalStack functionality.
+description: Use and author Git-style lstk CLI extensions. Use when invoking, discovering, or building an executable whose name starts with lstk-, handling LSTK_EXT_CONTEXT, or distinguishing CLI extensions from in-emulator LocalStack Extensions.
 ---
 
-# LocalStack Extensions
+# Use and author lstk CLI extensions
 
-Manage LocalStack Extensions to add custom functionality, integrate third-party tools, and extend LocalStack capabilities.
+`lstk` supports Git-style extensions. An executable named `lstk-<name>` on `PATH` becomes `lstk <name>`. There is no manifest, registry, install command, or registration step.
 
-## Capabilities
+This mechanism is different from Python-based LocalStack Extensions that run inside the emulator.
 
-- Install and manage LocalStack Extensions
-- Discover available extensions
-- Configure extension settings
-- Develop custom extensions
+## Discover and invoke extensions
 
-## Extension Management
-
-### List Installed Extensions
+List built-in commands and discovered extensions:
 
 ```bash
-localstack extensions list
+lstk --help
 ```
 
-### Install Extensions
+Locate an extension directly:
 
 ```bash
-# Install from PyPI
-localstack extensions install localstack-extension-name
-
-# Install specific version
-localstack extensions install localstack-extension-name==1.0.0
-
-# Install from Git repository
-localstack extensions install "git+https://github.com/org/extension-repo.git"
+command -v lstk-example
 ```
 
-### Uninstall Extensions
+Invoke it through `lstk`:
 
 ```bash
-localstack extensions uninstall localstack-extension-name
+lstk example --flag value
 ```
 
-### Enable/Disable Extensions
+Built-in commands and aliases always win. Arguments after the extension name are forwarded verbatim, and the extension's exit code and standard streams pass through.
 
-```bash
-# Extensions are enabled by default after installation
-# Disable via environment variable
-EXTENSION_NAME_ENABLED=0 localstack start -d
+## Install an extension executable
+
+1. Obtain or build a trusted executable named `lstk-<name>`.
+2. Put it in a directory on `PATH`.
+3. Mark it executable on Unix-like systems.
+4. Confirm it appears in `lstk --help`.
+5. Run a harmless help or version command before allowing state changes.
+
+`lstk` does not sandbox or verify third-party extensions. Do not install or execute an untrusted binary.
+
+## Read runtime context
+
+`lstk` supplies:
+
+- `LSTK_EXT_API_VERSION`: breaking-version number for the context contract.
+- `LSTK_EXT_CONTEXT`: JSON containing the resolved config directory, optional auth token, output mode, optional telemetry session ID, and running emulators.
+
+A shell extension can read the AWS endpoint with `jq`:
+
+```sh
+context=${LSTK_EXT_CONTEXT:-}
+aws_endpoint=$(
+  printf '%s' "$context" |
+    jq -r '.emulators[]? | select(.type == "aws") | .endpoint' |
+    head -n 1
+)
+
+if [ -z "$aws_endpoint" ]; then
+  printf '%s\n' "an AWS emulator is required; run 'lstk start --type aws'" >&2
+  exit 1
+fi
 ```
 
-## Available Extensions
+Treat the context as runtime input:
 
-### Community Extensions
+- Check a field's presence instead of inferring it from the API version.
+- Use `LSTK_EXT_API_VERSION` only to reject a breaking contract generation.
+- Handle an empty `emulators` array.
+- Select an emulator by `type`; do not assume only one entry.
+- Never print or persist `authToken`.
+- Do not prompt when `nonInteractive` is true.
+- Emit machine-readable output when choosing to honor `json`.
 
-Check the [LocalStack Extensions Registry](https://docs.localstack.cloud/user-guide/extensions/) for community-contributed extensions.
+## Author an extension
 
-## Using Extensions
+Name the executable `lstk-<name>` and parse only the arguments it owns. A minimal POSIX shell extension:
 
-### MailHog Extension
+```sh
+#!/usr/bin/env sh
+set -eu
 
-```bash
-# Install
-localstack extensions install localstack-extension-mailhog
+if [ "${LSTK_EXT_API_VERSION:-0}" -gt 1 ]; then
+  printf '%s\n' "unsupported lstk extension API version" >&2
+  exit 1
+fi
 
-# Start LocalStack
-localstack start -d
+if [ -z "${LSTK_EXT_CONTEXT:-}" ]; then
+  printf '%s\n' "this command must be run through lstk" >&2
+  exit 1
+fi
 
-# Access MailHog UI
-open http://localhost:8025
-
-# SES emails will be captured by MailHog
-awslocal ses send-email \
-  --from sender@example.com \
-  --to recipient@example.com \
-  --subject "Test" \
-  --text "Hello"
+printf '%s\n' "extension is ready"
 ```
 
-## Developing Custom Extensions
+Keep failures actionable and preserve meaningful exit codes. If the extension performs paid or protected work, authorize server-side with the supplied token; a client-side check is not a security boundary.
 
-### Extension Structure
+## Distinguish emulator extensions
 
-```
-my-extension/
-├── setup.py
-├── my_extension/
-│   ├── __init__.py
-│   └── extension.py
-```
-
-### Basic Extension
-
-```python
-# extension.py
-from localstack.extensions.api import Extension, http
-
-class MyExtension(Extension):
-    name = "my-extension"
-
-    def on_extension_load(self):
-        print("Extension loaded!")
-
-    def on_platform_start(self):
-        print("LocalStack is starting!")
-
-    @http.route("/my-endpoint")
-    def my_endpoint(self, request):
-        return {"message": "Hello from extension!"}
-```
-
-### Install Local Extension
-
-```bash
-# Install in development mode
-localstack extensions install -e ./my-extension
-```
-
-## Configuration
-
-Extensions can be configured via environment variables:
-
-```bash
-# General pattern
-EXTENSION_<NAME>_<SETTING>=value localstack start -d
-
-# Example
-EXTENSION_MAILHOG_PORT=8025 localstack start -d
-```
-
-## Troubleshooting
-
-- **Extension not loading**: Check `localstack logs` for errors
-- **Conflicts**: Disable conflicting extensions
-- **Version issues**: Ensure extension is compatible with your LocalStack version
+When the user means a Python extension running inside the LocalStack emulator, do not invent commands such as `lstk extensions install`. `lstk` v2 does not manage that system. Use the current [LocalStack Extensions documentation](https://docs.localstack.cloud/aws/configuration/extensions/) or the Extensions Library instead.
