@@ -1,11 +1,15 @@
 ---
 name: localstack-extensions
-description: Manage LocalStack Extensions. Use when users want to install, uninstall, list, or configure LocalStack extensions, or develop custom extensions to extend LocalStack functionality.
+description: Manage LocalStack Extensions. Use when users want to install, uninstall, list, or configure LocalStack extensions, or develop custom extensions to extend LocalStack functionality. Extensions require the legacy localstack CLI, not lstk.
 ---
 
 # LocalStack Extensions
 
 Manage LocalStack Extensions to add custom functionality, integrate third-party tools, and extend LocalStack capabilities.
+
+> **`lstk` does not support Extensions.** There is no `lstk extensions` command suite. Extension workflows must use the legacy `localstack` CLI for both installing extensions *and* starting the emulator — `lstk` keeps its own volume directory (`lstk volume path`, e.g. `~/Library/Caches/lstk/volume/localstack-aws`), separate from the legacy volume that extensions install into, so an emulator started by `lstk` will not load them.
+>
+> For everything else — lifecycle, IaC, snapshots, logs — prefer `lstk`. See the `localstack` skill.
 
 ## Capabilities
 
@@ -13,6 +17,17 @@ Manage LocalStack Extensions to add custom functionality, integrate third-party 
 - Discover available extensions
 - Configure extension settings
 - Develop custom extensions
+
+## Prerequisites
+
+The legacy CLI and, for the examples below, the `awslocal` wrapper:
+
+```bash
+pip install localstack
+pip install awscli-local   # optional; or use: aws --endpoint-url=http://localhost:4566
+```
+
+Do not run `lstk start` and `localstack start` at the same time — each manages its own container and they will conflict on port 4566. Stop one before starting the other (`lstk stop` / `localstack stop`).
 
 ## Extension Management
 
@@ -51,9 +66,7 @@ EXTENSION_NAME_ENABLED=0 localstack start -d
 
 ## Available Extensions
 
-### Community Extensions
-
-Check the [LocalStack Extensions Registry](https://docs.localstack.cloud/user-guide/extensions/) for community-contributed extensions.
+Browse the [Official Extensions Library](https://app.localstack.cloud/extensions/library) and the [Extensions documentation](https://docs.localstack.cloud/aws/capabilities/extensions/) for available extensions.
 
 ## Using Extensions
 
@@ -63,7 +76,7 @@ Check the [LocalStack Extensions Registry](https://docs.localstack.cloud/user-gu
 # Install
 localstack extensions install localstack-extension-mailhog
 
-# Start LocalStack
+# Start LocalStack with the legacy CLI so the extension is loaded
 localstack start -d
 
 # Access MailHog UI
@@ -114,11 +127,15 @@ class MyExtension(Extension):
 ```bash
 # Install in development mode
 localstack extensions install -e ./my-extension
+
+# Developer mode helpers
+localstack extensions dev list
+localstack extensions dev enable ./my-extension
 ```
 
 ## Configuration
 
-Extensions can be configured via environment variables:
+Extensions are configured via environment variables passed to `localstack start`:
 
 ```bash
 # General pattern
@@ -128,8 +145,13 @@ EXTENSION_<NAME>_<SETTING>=value localstack start -d
 EXTENSION_MAILHOG_PORT=8025 localstack start -d
 ```
 
+Note that the legacy CLI takes these variables **without** the `LOCALSTACK_` prefix that `lstk` requires.
+
 ## Troubleshooting
 
-- **Extension not loading**: Check `localstack logs` for errors
-- **Conflicts**: Disable conflicting extensions
-- **Version issues**: Ensure extension is compatible with your LocalStack version
+- **Extension not loading**: Confirm you started the emulator with `localstack start`, not `lstk start` — `lstk` uses a different volume directory and will not see installed extensions
+- **Port conflict on 4566**: an `lstk`-managed container may still be running; `lstk stop` first
+- **Errors on startup**: check `localstack logs` for extension stack traces
+- **Conflicts**: disable conflicting extensions
+- **Version issues**: ensure the extension is compatible with your LocalStack version
+- **Docker Compose users**: point `LOCALSTACK_VOLUME_DIR` at the LocalStack volume on your host (`~/.cache/localstack` on Linux, `~/Library/Caches/localstack` on macOS) so the CLI installs into the right place
