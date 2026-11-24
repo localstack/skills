@@ -18,23 +18,12 @@ Analyze IAM policies, detect permission violations, and automatically generate l
 ## Prerequisites
 
 - The `lstk` CLI, authenticated with a LocalStack account (`lstk login`, or `LOCALSTACK_AUTH_TOKEN` in CI) — see the `localstack` skill
-- Optional: the legacy `localstack` CLI (`pip install localstack`) for the IAM policy stream — see [Auto-Generate Policies](#auto-generate-policies). `lstk` has no equivalent command yet.
-
+- A license that includes IAM enforcement
 ## IAM Enforcement Modes
 
 ### Enable Enforcement
 
-`lstk` forwards host environment variables prefixed with `LOCALSTACK_`, so `ENFORCE_IAM` is set as `LOCALSTACK_ENFORCE_IAM`:
-
-```bash
-# Soft mode - logs violations but allows requests
-LOCALSTACK_ENFORCE_IAM=soft lstk start
-
-# Enforced mode - denies unauthorized requests
-LOCALSTACK_ENFORCE_IAM=1 lstk start
-```
-
-To make enforcement the default for a project, use an environment profile in `config.toml` (keys inside a profile need no prefix):
+Set the starting mode in an environment profile in `config.toml`, then `lstk start` (or `lstk restart`):
 
 ```toml
 [[containers]]
@@ -42,16 +31,33 @@ type = "aws"
 env  = ["iam"]
 
 [env.iam]
-ENFORCE_IAM = "soft"
+ENFORCE_IAM = "soft"     # or "1" for full enforcement
 ```
+
+To change the mode on a running emulator without touching config, use the [runtime switch](#switch-modes-without-restarting).
 
 ### Configuration
 
-| Mode | Behavior |
-|------|----------|
-| Disabled (default) | No IAM checks |
-| `soft` | Logs violations, allows requests |
-| `1` / `enforced` | Full enforcement, denies unauthorized |
+| Mode | `ENFORCE_IAM` at start | Runtime `state` | Behavior |
+|------|------------------------|-----------------|----------|
+| Disabled (default) | unset | `DISABLED` | No IAM checks |
+| Soft | `soft` | `SOFT_MODE` | Logs violations, allows requests |
+| Enforced | `1` | `ENFORCED` | Denies unauthorized requests |
+
+### Switch modes without restarting
+
+The IAM config endpoint reads and changes the mode on a running emulator, so you can flip enforcement between test runs instead of restarting:
+
+```bash
+# Current mode
+curl -s localhost:4566/_aws/iam/config | jq .state
+
+# Change it: ENFORCED, SOFT_MODE, or DISABLED
+curl -s -X POST localhost:4566/_aws/iam/config \
+  -H 'Content-Type: application/json' -d '{"state":"SOFT_MODE"}'
+```
+
+The runtime change lasts until the emulator restarts; use the start-time setting above for a default.
 
 ## Creating IAM Resources
 
@@ -102,39 +108,34 @@ lstk aws iam create-policy \
 
 ### Detect Violations
 
-1. Enable soft enforcement mode
+1. Enable soft or enforced mode
 2. Run your application
-3. Check logs for access denied messages
+3. Pull the denials from the logs (`-v` disables `lstk`'s default log filtering)
 
-```bash
-# View IAM-related log entries (-v disables lstk's default log filtering)
-lstk logs -v | grep -i "access denied"
-lstk logs -v | grep -i "iam"
+LocalStack writes a denial in one of two formats:
+
+```
+Request for service 'sqs' by principal 'arn:aws:iam::000000000000:role/app' for operation 'SendMessage' denied.
+User: arn:aws:iam::000000000000:role/app is not authorized to perform: sqs:SendMessage on resource: arn:aws:sqs:... because ...
 ```
 
-### Auto-Generate Policies
-
-The legacy `localstack` CLI can print the exact policy each request would need, which is far more reliable than reading logs. There is no `lstk` equivalent yet, so install the legacy CLI alongside `lstk` for this workflow:
-
 ```bash
-pip install localstack
-
-# Live stream of recommended policies as requests come in
-localstack aws iam stream
-localstack aws iam stream --format json
-
-# Aggregate summary of policies for all enforced requests
-localstack aws iam summary
+lstk logs -v | grep -E "for operation '[^']*' denied\.|is not authorized to perform:"
 ```
 
-Workflow:
+Some lines also carry `Action '<service:Action>' for '<resource-arn>'`, which pins the resource for a denial.
 
-1. Start with `LOCALSTACK_ENFORCE_IAM=soft lstk start`
-2. Run `localstack aws iam stream` in a second terminal
-3. Exercise your application
-4. Collect the recommended statements and merge them into a minimal policy
+### Generate a policy from the denials
 
-If the legacy CLI is not available, fall back to reading `lstk logs -v` for access-denied entries and building the policy from the observed actions and resources.
+1. Switch to `SOFT_MODE`, so the run completes instead of stopping at the first denial.
+2. Exercise the full workload once.
+3. Extract each unique **(principal, action, resource)** from the denial lines above. Normalize the action to `service:Operation` (the first format gives service and operation separately).
+4. Group by principal, then write one policy per principal: one statement per resource, listing its actions. Use the exact resource ARN when the log gives one; fall back to `*` only for actions that do not support resource-level permissions, and say so.
+5. Attach the policy, switch to `ENFORCED`, rerun the workload, and repeat until no denials remain.
+
+Done when an enforced run produces no denial lines.
+
+For a single failing call, App Inspector shows the policy evaluation behind the decision (`events/iam` on the span) — see the `localstack-app-inspector` skill.
 
 ## Testing Policies
 
@@ -160,7 +161,7 @@ lstk aws accessanalyzer validate-policy \
 ## Best Practices
 
 - Start with soft enforcement to discover required permissions
-- Use `localstack aws iam stream` rather than log grepping when generating policies
+- Flip modes at runtime through `/_aws/iam/config` between runs instead of restarting
 - Use least-privilege principles when creating policies
 - Test policies locally before deploying to AWS
 - Snapshot a known-good IAM setup with `lstk save` so you can restore it after experiments

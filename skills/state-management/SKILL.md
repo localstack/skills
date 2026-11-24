@@ -1,6 +1,6 @@
 ---
 name: localstack-state
-description: Manage LocalStack state and snapshots with lstk. Use when users want to save, load, export, or import LocalStack state, work with Cloud Pods or S3-backed snapshots, or enable persistence across restarts.
+description: Manage LocalStack state and snapshots with lstk. Use when users want to save, load, export, import, inspect, or reset LocalStack state (all or per service), work with Cloud Pods or S3-backed snapshots, or enable persistence across restarts.
 ---
 
 # State Management
@@ -21,7 +21,7 @@ Save, load, and manage LocalStack state for reproducible development environment
 - `lstk` installed and authenticated (`lstk login`, or `LOCALSTACK_AUTH_TOKEN` in CI) — see the `localstack` skill
 - A running emulator for `save` (`lstk load` will start one for you if needed)
 
-`lstk save` / `lstk load` replace the legacy `localstack state export/import` and `localstack pod save/load` commands with a single snapshot interface. The destination REF decides where the state goes.
+`lstk save` / `lstk load` are a single snapshot interface for every backend. The destination REF decides where the state goes.
 
 ## Snapshot References (REF)
 
@@ -179,14 +179,41 @@ lstk restart --persist
 
 You can also set `PERSISTENCE = "1"` in an `[env.*]` profile in `config.toml` to make it the default for every run.
 
+## Inspecting State
+
+See what the emulator currently holds, per service, account, and region, before saving or resetting:
+
+```bash
+lstk status                                       # human-readable resource list
+lstk --json status | jq                           # the same, machine-readable
+curl -s localhost:4566/_localstack/pods/state/metamodel | jq   # full state metamodel
+```
+
 ## Clearing State
 
 ```bash
-# Discard in-memory resources, keep the emulator running
+# Discard all in-memory resources, keep the emulator running
 lstk reset
+
+# Reset only some services
+curl -s -X POST localhost:4566/_localstack/state/s3/reset
+curl -s -X POST localhost:4566/_localstack/state/lambda/reset
 
 # Wipe the on-disk volume (stop the emulator first)
 lstk volume clear
+```
+
+## State REST API
+
+The emulator exposes file export and import over HTTP. Use it when `lstk` is not available, for example from a test harness that only reaches the gateway:
+
+```bash
+# Export (optionally only some services) to a file
+curl -s "localhost:4566/_localstack/pods/state?services=s3,lambda" -o state.snapshot
+
+# Import a file into the running emulator
+curl -s -X POST localhost:4566/_localstack/pods \
+  -H 'Content-Type: application/octet-stream' --data-binary @state.snapshot
 ```
 
 ## Comparison
@@ -209,3 +236,4 @@ Note that `lstk` itself always requires a LocalStack account and license, regard
 - Use `--services` to keep snapshots small when you only care about part of the stack
 - Use `--dry-run` before loading an unfamiliar Cloud Pod into a populated emulator
 - Use `lstk start --persist` for simple state retention across restarts
+- Reset single services between test cases instead of the whole emulator when the other services hold fixtures you need
