@@ -49,7 +49,7 @@ export LOCALSTACK_AUTH_TOKEN=<token>
 lstk --non-interactive start
 ```
 
-Token resolution order: system keyring (from `lstk login`) → `LOCALSTACK_AUTH_TOKEN` → interactive browser login. The keyring wins over the environment variable, so run `lstk logout` first if you need to switch.
+Token resolution order: `LOCALSTACK_AUTH_TOKEN` → system keyring (from `lstk login`) → interactive browser login. The environment variable wins, so `LOCALSTACK_AUTH_TOKEN=<other-token> lstk start` switches accounts for one run without logging out.
 
 ## Common Commands
 
