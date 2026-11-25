@@ -1,6 +1,6 @@
 ---
 name: localstack-extensions
-description: Manage LocalStack Extensions. Use when users want to install, discover, or configure LocalStack extensions (from the marketplace or PyPI), preload extensions on start, or develop custom extensions.
+description: Manage LocalStack Extensions. Use when users want to install, uninstall, list, discover, or configure LocalStack extensions (from the marketplace or PyPI), preload extensions on start, check whether an extension loaded, or develop custom extensions.
 ---
 
 # LocalStack Extensions
@@ -16,7 +16,8 @@ Extensions add services and integrations to the emulator (MailHog for SES, TypeD
 
 | Task | Route |
 |------|-------|
-| Install extensions | [`EXTENSION_AUTO_INSTALL`](#install-on-start) |
+| Install extensions for the project | [`EXTENSION_AUTO_INSTALL`](#install-on-start) |
+| List, try, or remove extensions on a running emulator | [Extensions API](#manage-extensions-on-a-running-emulator) |
 | Browse what is available | [Marketplace](#discover-extensions) |
 | Build and ship your own extension | [Custom extensions](#developing-custom-extensions) |
 
@@ -36,6 +37,36 @@ EXTENSION_AUTO_INSTALL = "localstack-extension-mailhog,localstack-extension-http
 Then `lstk start` (or `lstk restart` if the emulator is already running). The extension list is committed with the project, so every teammate and CI run gets the same extensions.
 
 Use package specs only (`name`, `name[extra]`, `name==version`). Git URLs are not supported.
+
+## Manage extensions on a running emulator
+
+The emulator gateway exposes an extensions API. It is what the LocalStack Web Application's Extension Manager uses, but it is not in the public docs, so it may change.
+
+List installed extensions and whether each one loaded:
+
+```bash
+curl -s localhost:4566/_localstack/extensions/list \
+  | jq '.[] | {name, version: .distribution.version, status}'
+```
+
+Each entry has the plugin `name`, the package metadata under `distribution` (`name`, `version`, `summary`), and a `status` with `is_initialized`, `is_loaded`, and `load_error`. `load_error: true` means the extension failed to load; read the stack trace with `lstk logs --verbose | grep -i extension`. An extension missing from the list is not installed.
+
+Install or uninstall one, for example to try it before adding it to the profile:
+
+```bash
+curl -s -X POST localhost:4566/_localstack/extensions/install \
+  -H 'Content-Type: application/json' -d '{"URL": "localstack-extension-mailhog"}'
+
+curl -s -X POST localhost:4566/_localstack/extensions/uninstall \
+  -H 'Content-Type: application/json' -d '{"distribution": "localstack-extension-mailhog"}'
+```
+
+- `URL` takes the same package specs as `EXTENSION_AUTO_INSTALL`, including `name==version`. Git URLs are rejected.
+- `uninstall` takes either the package name as `distribution` or the plugin name as `name`, not both.
+- The response streams one JSON object per line while pip runs. A line with `"event": "error"` or `"event": "exception"` means the call failed; read its `message`.
+- LocalStack restarts itself after every install or uninstall, even when the body sets `"restart": false`. In-memory state is lost unless persistence is on, so save a snapshot first if it matters (`localstack-state` skill). Wait until `lstk status` reports the emulator ready, then check the list again.
+
+An extension installed this way stays on the emulator volume but is not recorded in the project. When it should stay, add it to `EXTENSION_AUTO_INSTALL` so teammates and CI get it too.
 
 ## Discover extensions
 
@@ -76,6 +107,6 @@ Start from an existing extension in [localstack/localstack-extensions](https://g
 
 ## Troubleshooting
 
-- **Extension not active**: confirm the `extensions` profile is listed in the container block's `env`, then `lstk restart`
+- **Extension not active**: check `curl -s localhost:4566/_localstack/extensions/list`. If it is missing, confirm the `extensions` profile is listed in the container block's `env`, then `lstk restart`. If it is listed with `load_error: true`, read the startup errors below
 - **Errors on startup**: `lstk logs -v | grep -i extension`
 - **Version issues**: pin a version compatible with your LocalStack image
