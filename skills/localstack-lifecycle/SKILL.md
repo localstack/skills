@@ -150,15 +150,14 @@ Define named `[env.*]` profiles and list the ones to apply in the container bloc
 type = "aws"
 tag  = "latest"
 port = "4566"
-env  = ["debug", "ci"]
+env  = ["debug", "iam"]
 
 [env.debug]
 DEBUG = "1"
 PERSISTENCE = "1"
 
-[env.ci]
-SERVICES = "s3,sqs"
-EAGER_SERVICE_LOADING = "1"
+[env.iam]
+ENFORCE_IAM = "1"
 ```
 
 Use a project-local `./.lstk/config.toml` for project settings, so they are committed with the code. Resolution order: `./.lstk/config.toml` → `$HOME/.config/lstk/config.toml` → OS default location. Print the active path with `lstk config path`. Config changes take effect on the next `lstk start` or `lstk restart`.
@@ -170,9 +169,13 @@ Use a project-local `./.lstk/config.toml` for project settings, so they are comm
 | `DEBUG` | Debug logging | `DEBUG = "1"` |
 | `LS_LOG` | Log level, e.g. `trace` | `LS_LOG = "trace"` |
 | `PERSISTENCE` | Persist state across restarts | `PERSISTENCE = "1"` (or `lstk start --persist`) |
-| `SERVICES` | Limit the services started | `SERVICES = "s3,sqs"` |
-| `ENFORCE_IAM` | IAM enforcement | `ENFORCE_IAM = "soft"` |
+| `SERVICES` | Allowlist of services; every other service is disabled. See below before setting it | `SERVICES = "s3,sqs"` |
+| `ENFORCE_IAM` | IAM enforcement; add `IAM_SOFT_MODE = "1"` to log violations without denying | `ENFORCE_IAM = "1"` |
 | `GATEWAY_LISTEN` | Bind address/ports | `GATEWAY_LISTEN = "0.0.0.0:4566"` |
+
+Leave `SERVICES` unset by default. Services already start lazily on their first request, so listing them does not speed up startup or save memory. Setting it disables every service not listed, and calls to those services fail. That includes calls that IaC tools and other AWS services make on your behalf: a CDK deploy needs CloudFormation, S3, IAM, and SSM, and a Lambda needs IAM and CloudWatch Logs. Set it only to prove that a workload uses nothing outside a known set of services. When a call to an unlisted service fails, add the service or remove the setting.
+
+To start services at boot instead of on first use, for example so the first test request is not slowed down, set `EAGER_SERVICE_LOADING = "1"`. This makes startup longer; combine it with `SERVICES` only when you also want the allowlist.
 
 Two settings are host-side, not emulator config, and stay environment variables: `LOCALSTACK_AUTH_TOKEN` (or `lstk login`) and `LOCALSTACK_HOST` (endpoint host used by `lstk aws` and friends).
 

@@ -31,18 +31,21 @@ type = "aws"
 env  = ["iam"]
 
 [env.iam]
-ENFORCE_IAM = "soft"     # or "1" for full enforcement
+ENFORCE_IAM = "1"
+IAM_SOFT_MODE = "1"      # remove for full enforcement
 ```
+
+`IAM_SOFT_MODE` only takes effect together with `ENFORCE_IAM = "1"`.
 
 To change the mode on a running emulator without touching config, use the [runtime switch](#switch-modes-without-restarting).
 
 ### Configuration
 
-| Mode | `ENFORCE_IAM` at start | Runtime `state` | Behavior |
-|------|------------------------|-----------------|----------|
-| Disabled (default) | unset | `DISABLED` | No IAM checks |
-| Soft | `soft` | `SOFT_MODE` | Logs violations, allows requests |
-| Enforced | `1` | `ENFORCED` | Denies unauthorized requests |
+| Mode | Profile keys at start | Runtime `state` | Behavior |
+|------|-----------------------|-----------------|----------|
+| Disabled (default) | unset, or `ENFORCE_IAM = "0"` | `DISABLED` | No IAM checks |
+| Soft | `ENFORCE_IAM = "1"`, `IAM_SOFT_MODE = "1"` | `SOFT_MODE` | Logs violations, allows requests |
+| Enforced | `ENFORCE_IAM = "1"` | `ENFORCED` | Denies unauthorized requests |
 
 ### Switch modes without restarting
 
