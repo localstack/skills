@@ -1,6 +1,6 @@
 {
   "name": "localstack",
-  "description": "AI skills for developing and testing cloud applications against LocalStack — covering emulator lifecycle (AWS, Snowflake, Azure), infrastructure deployment and testing, IAM policy analysis, App Inspector tracing, chaos engineering, state management, log analysis, AWS Replicator, and extensions.",
+  "description": "Portable agent skills for developing and testing cloud applications with LocalStack through lstk: emulator lifecycle (AWS, Snowflake, Azure), IaC deployment and testing, state, logs, IAM, App Inspector, chaos engineering, AWS Replicator, and extensions.",
   "version": "1.1.0",
   "author": {
     "name": "LocalStack"
@@ -8,5 +8,18 @@
   "homepage": "https://github.com/localstack/skills",
   "repository": "https://github.com/localstack/skills",
   "license": "Apache-2.0",
-  "keywords": ["localstack", "cloud", "aws", "azure", "snowflake", "iac", "terraform", "cdk", "testing", "local-development", "chaos-engineering", "app-inspector"]
+  "keywords": [
+    "localstack",
+    "cloud",
+    "aws",
+    "azure",
+    "snowflake",
+    "iac",
+    "terraform",
+    "cdk",
+    "testing",
+    "local-development",
+    "chaos-engineering",
+    "app-inspector"
+  ]
 }

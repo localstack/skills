@@ -7,6 +7,9 @@ check_jsonschema_version="0.37.4"
 skills_ref_revision="217be548739f21d6008915c29aefe320ea1a90af"
 skills_ref_source="git+https://github.com/agentskills/agentskills.git@${skills_ref_revision}#subdirectory=skills-ref"
 
+echo "Checking cross-file consistency"
+python3 -I "$repo_root/scripts/check_consistency.py"
+
 if ! command -v uvx >/dev/null 2>&1; then
   echo "uvx is required; install uv from https://docs.astral.sh/uv/" >&2
   exit 1

@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "localstack",
   "version": "1.1.0",
-  "description": "Portable agent skills for developing and testing cloud applications with LocalStack through lstk.",
+  "description": "Portable agent skills for developing and testing cloud applications with LocalStack through lstk: emulator lifecycle (AWS, Snowflake, Azure), IaC deployment and testing, state, logs, IAM, App Inspector, chaos engineering, AWS Replicator, and extensions.",
   "author": {
     "name": "LocalStack"
   },
@@ -19,6 +19,8 @@
     "terraform",
     "cdk",
     "testing",
-    "local-development"
+    "local-development",
+    "chaos-engineering",
+    "app-inspector"
   ]
 }

@@ -73,7 +73,7 @@ claude plugin install localstack@localstack-dev
 
 ## Validate locally
 
-Validation requires [`uv`](https://docs.astral.sh/uv/), Git, and network access to PyPI, GitHub, and `agent-plugins.org`. The script validates `plugin.json` against the canonical Agent Plugins schema and validates every skill with a pinned revision of the official `skills-ref` implementation:
+Validation requires Python 3, [`uv`](https://docs.astral.sh/uv/), Git, and network access to PyPI, GitHub, and `agent-plugins.org`. The script first runs `scripts/check_consistency.py`, which fails when the three manifests (`plugin.json`, `.claude-plugin/plugin.json`, and the `.claude-plugin/marketplace.json` entry) disagree on name, version, description, or metadata, when a skill cross-reference, anchor, or relative link is broken, or when the README skills table does not match `skills/`. It then validates `plugin.json` against the canonical Agent Plugins schema and validates every skill with a pinned revision of the official `skills-ref` implementation:
 
 ```bash
 ./scripts/validate.sh
@@ -97,6 +97,7 @@ claude plugin validate --strict .
 │   ├── plugin.json
 │   └── marketplace.json
 └── scripts/
+    ├── check_consistency.py
     └── validate.sh
 ```
 
