@@ -1,13 +1,13 @@
 ---
 name: localstack-iam
-description: Test IAM policies and enforcement in LocalStack with lstk. Use when reproducing access denials, enabling or switching soft or enforced IAM evaluation, validating policies, or deriving least-privilege permissions from observed requests.
+description: Test IAM policies and enforcement in LocalStack with lstk. Use when reproducing or fixing access denials, streaming IAM violations, enabling or switching soft or enforced IAM evaluation, validating policies, or deriving least-privilege permissions from observed requests.
 ---
 
 # Test IAM policies in LocalStack
 
-Use the AWS emulator, `lstk aws`, and verbose logs to test real policy behavior. Do not claim that logs automatically generate a complete policy; treat observed actions as evidence for a candidate least-privilege policy.
+Use the AWS emulator, `lstk aws`, App Inspector, and the IAM Policy Stream to test real policy behavior. Treat derived policies as evidence for a candidate least-privilege policy, not a verified one.
 
-IAM enforcement depends on the user's LocalStack plan.
+IAM enforcement, App Inspector IAM events, and the Policy Stream depend on the user's LocalStack plan.
 
 ## Configure enforcement
 
@@ -16,6 +16,9 @@ IAM enforcement depends on the user's LocalStack plan.
 | Disabled (default) | none | `DISABLED` | No IAM checks |
 | Soft | `ENFORCE_IAM = "1"`, `IAM_SOFT_MODE = "1"` | `SOFT_MODE` | Logs violations, allows requests |
 | Enforced | `ENFORCE_IAM = "1"` | `ENFORCED` | Denies unauthorized requests |
+| Engine only | none; set at runtime | `ENGINE_ONLY` | Evaluates policies and records denials, but neither blocks nor logs them |
+
+Enabling App Inspector moves the mode from `DISABLED` to `ENGINE_ONLY`, so denials are recorded without enforcement. Never switch to `ENFORCED` just to see denials; it can break a workload that works.
 
 Set the starting mode in a profile in the file that `lstk config path` reports. For soft evaluation:
 
@@ -60,7 +63,7 @@ The IAM config endpoint reads and changes the mode on a running emulator, so enf
 # Current mode
 curl -s localhost:4566/_aws/iam/config | jq .state
 
-# Change it: ENFORCED, SOFT_MODE, or DISABLED
+# Change it: ENFORCED, SOFT_MODE, ENGINE_ONLY, or DISABLED
 curl -s -X POST localhost:4566/_aws/iam/config \
   -H 'Content-Type: application/json' -d '{"state":"SOFT_MODE"}'
 ```
@@ -93,28 +96,40 @@ lstk aws s3 ls
 
 ## Investigate a denial
 
-1. Reproduce the request with the intended principal.
-2. Pull the denial lines from the verbose logs. LocalStack writes a denial in one of two formats:
+Start with App Inspector for any permission error. LocalStack records each denied request with the policies that decided it, including another account's policies that you cannot read, and a suggested fix. See the "Explain IAM denials" section of the `localstack-app-inspector` skill.
 
-```text
-Request for service 'sqs' by principal 'arn:aws:iam::000000000000:role/app' for operation 'SendMessage' denied.
-User: arn:aws:iam::000000000000:role/app is not authorized to perform: sqs:SendMessage on resource: arn:aws:sqs:... because ...
-```
-
-```bash
-lstk logs --verbose --tail 500 | grep -E "for operation '[^']*' denied\.|is not authorized to perform:"
-```
-
-Some lines also carry `Action '<service:Action>' for '<resource-arn>'`, which pins the resource for a denial.
-
-3. Record the principal, action, resource ARN, explicit denies, and missing allows.
-4. Update the smallest relevant statement.
-5. Re-run the same request with the same credentials.
-6. Confirm both the API result and the verbose log.
+Use the Policy Stream below for what App Inspector does not record, such as requests to STS and IAM (for example a trust policy failing `sts:AssumeRole`), and when the license or image has no App Inspector IAM events.
 
 An explicit deny always wins. Check identity policies, resource policies, permission boundaries, and service-generated calls before broadening permissions.
 
-For a single failing call, App Inspector shows the policy evaluation behind the decision in the span's `events/iam`; see the `localstack-app-inspector` skill.
+## Detect violations with the Policy Stream
+
+`GET /_aws/iam/policies/stream` streams one JSON line for every request IAM evaluates, while the connection stays open. It needs IAM evaluation on (`SOFT_MODE`, `ENFORCED`, or `ENGINE_ONLY`) and a license that includes the IAM Policy Stream.
+
+Open the stream before running the workload; it shows only requests made while it is connected:
+
+```bash
+curl -sN localhost:4566/_aws/iam/policies/stream > iam-stream.jsonl &
+# run the workload, then stop the stream
+kill %1
+```
+
+Each line holds:
+
+- `request`: `service`, `operation`, `parameters`, `id`, `internal`, and `allowed`, which is `false` when IAM denies the request, even in a mode that lets it through
+- `resource`: the principal ARN for an `identity` policy, or the resource ARN for a `resource` policy, such as a Lambda's resource policy for a service principal
+- `policy_type`: `identity` or `resource`
+- `policy_document`: the least-privilege policy for `resource` that allows every request seen so far for it, not only this one
+
+Violations are the lines where `request.allowed` is `false`:
+
+```bash
+jq -c 'select(.request.allowed == false)
+  | {principal: .resource, type: .policy_type, call: "\(.request.service).\(.request.operation)",
+     allow: [.policy_document.Statement[] | {Action, Resource}]}' iam-stream.jsonl
+```
+
+The stream also carries every allowed request, including the root user's own calls, so always filter. A cross-account request produces two lines: an identity policy for the caller and a resource policy for the target. Add `?include_evaluation_failures=1` to also stream requests whose evaluation raised an error; those lines carry `evaluation_failed: true`, `error_type`, and `error_message` instead of a policy, and LocalStack let them through unchecked.
 
 ## Validate and simulate policies
 
@@ -133,14 +148,13 @@ Treat simulator and validator results as additional evidence; still run the appl
 
 ## Derive least privilege
 
-1. Switch to `SOFT_MODE` with a clean test scenario, so the run completes instead of stopping at the first denial.
-2. Exercise every intended application path once.
-3. Extract each unique principal, action, and resource from the denial lines above. Normalize the action to `service:Operation`; the first format gives service and operation separately.
-4. Group by principal, then write one policy per principal: one statement per resource, listing its actions. Use the exact resource ARN when the log gives one; fall back to `*` only for actions that do not support resource-level permissions, and say so.
-5. Attach the policy, switch to `ENFORCED`, rerun the workload, and repeat until no denial lines remain.
+1. Switch to `SOFT_MODE` or `ENGINE_ONLY`, so the run completes instead of stopping at the first denial.
+2. Clear the summary with `curl -s -X DELETE localhost:4566/_aws/iam/policies/summary`, then exercise every intended application path once.
+3. Read the result with `curl -s localhost:4566/_aws/iam/policies/summary | jq`: one entry per `resource`, with its `policy_type` and merged `policy_document`. From a saved stream instead, take the last line for each `resource`, since every line holds the merged document so far.
+4. Attach each policy to its principal or resource in the IaC. Statements with a `Principal` belong in a resource policy or a role's trust policy.
+5. Switch to `ENFORCED`, rerun the workload, and repeat until the stream shows no `"allowed": false` lines.
 6. Run negative tests that confirm unauthorized calls fail.
-7. Review for wildcard actions, wildcard resources, and permissions the scenario did not exercise.
 
-The result covers only the requests actually observed. Paths the scenario never ran stay unverified.
+The policies cover only the requests observed, and their `Sid` values are generated. Review them for wildcard actions, wildcard resources, and permissions the scenario did not exercise.
 
 Save a known-good IAM setup with `lstk snapshot save` to restore it after experiments; see the `localstack-state` skill.

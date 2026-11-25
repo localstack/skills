@@ -129,15 +129,14 @@ Add named environment profiles to that TOML file and reference them from the act
 type = "aws"
 tag = "latest"
 port = "4566"
-env = ["debug", "ci"]
+env = ["debug", "iam"]
 
 [env.debug]
 DEBUG = "1"
 LS_LOG = "trace"
 
-[env.ci]
-SERVICES = "s3,sqs"
-EAGER_SERVICE_LOADING = "1"
+[env.iam]
+ENFORCE_IAM = "1"
 ```
 
 Preserve unrelated settings and keep only one enabled `[[containers]]` block. Restart the emulator after changing its environment.
@@ -149,9 +148,13 @@ Common settings:
 | `DEBUG = "1"` | Debug logging |
 | `LS_LOG = "trace"` | Request and response-level logging |
 | `PERSISTENCE = "1"` | Persist state across restarts by default |
-| `SERVICES = "s3,sqs"` | Start only the listed services |
-| `ENFORCE_IAM = "1"` | IAM enforcement; see the `localstack-iam` skill |
+| `SERVICES = "s3,sqs"` | Allowlist of services; every other service is disabled. See below before setting it |
+| `ENFORCE_IAM = "1"` | IAM enforcement; add `IAM_SOFT_MODE = "1"` to log violations without denying. See the `localstack-iam` skill |
 | `GATEWAY_LISTEN = ":4566"` | Bind only port 4566 |
+
+Leave `SERVICES` unset by default. Services already start lazily on their first request, so listing them does not speed up startup or save memory. Setting it disables every service not listed, and calls to those services fail. That includes calls that IaC tools and other AWS services make on your behalf: a CDK deploy needs CloudFormation, S3, IAM, and SSM, and a Lambda needs IAM and CloudWatch Logs. Set it only to prove that a workload uses nothing outside a known set of services. When a call to an unlisted service fails, add the service or remove the setting.
+
+To start services at boot instead of on first use, for example so the first test request is not slowed down, set `EAGER_SERVICE_LOADING = "1"`. This makes startup longer; combine it with `SERVICES` only when you also want the allowlist.
 
 Set `tag` in the container block to pin the emulator version instead of tracking `latest` when a run must be reproducible, for example `tag = "2026.4"`. Set `image` to pull the emulator from an internal registry mirror; if `image` carries no tag, `tag` is appended to it.
 
