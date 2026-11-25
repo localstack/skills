@@ -99,4 +99,4 @@ Keep failures actionable and preserve meaningful exit codes. If the extension pe
 
 ## Distinguish emulator extensions
 
-When the user means a Python extension running inside the LocalStack emulator, do not invent commands such as `lstk extensions install`. `lstk` does not manage that system. Use the `localstack-extensions` skill, which covers installing and authoring in-emulator Extensions with the legacy `localstack` CLI.
+When the user means a Python extension running inside the LocalStack emulator, do not invent commands such as `lstk extensions install`. `lstk` does not manage that system. Use the `localstack-extensions` skill, which installs in-emulator Extensions through emulator configuration.

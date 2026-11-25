@@ -1,6 +1,6 @@
 ---
 name: localstack-state
-description: Manage LocalStack state with lstk snapshots and persistent volumes. Use when saving, loading, exporting, importing, versioning, sharing, resetting, or reproducing emulator state locally, in Cloud Pods, or in S3.
+description: Manage LocalStack state with lstk snapshots and persistent volumes. Use when saving, loading, exporting, importing, inspecting, versioning, sharing, resetting all or single services, or reproducing emulator state locally, in Cloud Pods, or in S3.
 ---
 
 # Manage LocalStack state
@@ -152,3 +152,35 @@ lstk volume clear
 `lstk reset` discards the emulator's in-memory resources and leaves it running. `lstk volume clear` wipes the on-disk volume — certificates, downloaded tools, and persistence data — and expects the emulator to be stopped first. Both accept `--force` to skip the confirmation prompt in automation.
 
 Use a snapshot before destructive experiments when rollback matters.
+
+## Inspect current state
+
+See what the emulator holds, per service, account, and region, before saving or resetting:
+
+```bash
+lstk status                                                     # human-readable resource list
+lstk --json status | jq                                         # the same, machine-readable
+curl -s localhost:4566/_localstack/pods/state/metamodel | jq    # full state metamodel
+```
+
+## Reset single services
+
+Reset only the services a test touched, keeping fixtures held by the others:
+
+```bash
+curl -s -X POST localhost:4566/_localstack/state/s3/reset
+curl -s -X POST localhost:4566/_localstack/state/lambda/reset
+```
+
+## Export and import over HTTP
+
+The emulator gateway exposes snapshot export and import. Use it when `lstk` is not available, for example from a test harness that only reaches the gateway:
+
+```bash
+# Export, optionally only some services, to a file
+curl -s "localhost:4566/_localstack/pods/state?services=s3,lambda" -o state.snapshot
+
+# Import a file into the running emulator
+curl -s -X POST localhost:4566/_localstack/pods \
+  -H 'Content-Type: application/octet-stream' --data-binary @state.snapshot
+```

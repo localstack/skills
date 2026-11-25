@@ -44,22 +44,7 @@ Read it when the CLI is the problem rather than the emulator: a start that never
 
 ## Enable detailed emulator logging
 
-Find the active config:
-
-```bash
-lstk config path
-```
-
-`lstk start` forwards a host environment variable to the emulator only when it carries the `LOCALSTACK_` prefix, which raises the log level for a single run without editing config:
-
-```bash
-LOCALSTACK_DEBUG=1 lstk start
-LOCALSTACK_LS_LOG=trace lstk start
-```
-
-A key set inside an `[env.*]` profile takes no prefix.
-
-Attach a debug profile to the active emulator:
+Attach a debug profile to the active emulator in the file that `lstk config path` reports:
 
 ```toml
 [[containers]]
@@ -71,11 +56,13 @@ DEBUG = "1"
 LS_LOG = "trace"
 ```
 
-For Lambda-specific diagnostics, add `LAMBDA_DEBUG = "1"` only when the current LocalStack documentation recommends it for the runtime under investigation. Restart after changing emulator environment:
+Keys inside an `[env.*]` profile take no `LOCALSTACK_` prefix. For Lambda-specific diagnostics, add `LAMBDA_DEBUG = "1"` only when the current LocalStack documentation recommends it for the runtime under investigation. Restart after changing emulator environment:
 
 ```bash
 lstk restart
 ```
+
+Remove `"debug"` from `env` when done; trace logging is noisy. For a single throwaway run, `LOCALSTACK_DEBUG=1 lstk start` also works, but a plain `lstk restart` drops it; see the `localstack` skill.
 
 ## Diagnose AWS API failures
 
@@ -88,15 +75,39 @@ lstk restart
 
 Under `--verbose`, handled AWS calls appear as request lines naming the service, operation, and HTTP status, typically in the shape `AWS <service>.<operation> => <status>` (for example `AWS s3.CreateBucket => 200`). Grep the operation name or a non-2xx status to isolate the failing call.
 
+Pick the view that matches the question:
+
+```bash
+# Summary: how many calls, and the latest failures
+lstk logs --verbose --tail 2000 | grep -cE "AWS [a-z0-9-]+\.[A-Za-z]+ =>"
+lstk logs --verbose --tail 2000 | grep -E "AWS [a-z0-9-]+\.[A-Za-z]+ => [45][0-9]{2}" | tail -5
+
+# Errors: failed calls grouped by service.operation and status, most frequent first
+lstk logs --verbose --tail 2000 | grep -oE "AWS [a-z0-9-]+\.[A-Za-z]+ => [45][0-9]{2}( \([A-Za-z]+\))?" \
+  | sort | uniq -c | sort -rn
+
+# Requests: every call to one operation, in order
+lstk logs --verbose | grep -E "AWS dynamodb\.PutItem =>"
+
+# Raw: stack traces and ERROR lines around a failure
+lstk logs --verbose --tail 2000 | grep -E -B2 -A15 "ERROR|Traceback"
+```
+
+Group errors before reading them: one root cause usually produces many identical lines, and the count shows which one matters.
+
 Common signals include:
 
 | Signal | Check |
 | --- | --- |
-| `ResourceNotFoundException` | Confirm resource name, region, and account |
-| `AccessDenied` | Inspect IAM enforcement and the request credentials |
+| `ResourceNotFoundException` | Confirm resource name, region, and account; check `lstk status` |
+| `AccessDenied` or `... is not authorized to perform` | IAM enforcement denied the call; see the `localstack-iam` skill |
+| `501` or `NotImplemented` | The operation is not covered; check the service's coverage page on docs.localstack.cloud |
+| Unexpected `5xx` while a chaos rule is active | Injected fault; run `curl -s localhost:4566/_localstack/chaos/faults` and see the `localstack-chaos` skill |
 | `ValidationException` | Compare request parameters with the AWS API contract |
 | Connection refusal or timeout | Check `lstk status`, ports, and readiness |
 | Provider exception | Read the first stack trace and check service coverage |
+
+When a failure spans several services, such as Lambda to SQS to DynamoDB, the logs show each hop separately. App Inspector links them into one trace; see the `localstack-app-inspector` skill.
 
 ## Inspect Lambda logs
 
@@ -136,7 +147,7 @@ lstk --non-interactive status
 For a default local endpoint, inspect the raw health payload only when needed:
 
 ```bash
-curl http://localhost:4566/_localstack/health
+curl -s http://localhost:4566/_localstack/health | jq '.services.s3'
 ```
 
 `lstk logs` has no external-emulator mode. When using `--endpoint-url`, obtain logs from the system that owns that emulator and use `lstk --endpoint-url <url> status` for reachability.

@@ -1,23 +1,23 @@
 ---
 name: localstack-iam
-description: Test IAM policies and enforcement in LocalStack with lstk. Use when reproducing access denials, enabling soft or enforced IAM evaluation, validating policies, or deriving least-privilege permissions from observed requests.
+description: Test IAM policies and enforcement in LocalStack with lstk. Use when reproducing access denials, enabling or switching soft or enforced IAM evaluation, validating policies, or deriving least-privilege permissions from observed requests.
 ---
 
 # Test IAM policies in LocalStack
 
 Use the AWS emulator, `lstk aws`, and verbose logs to test real policy behavior. Do not claim that logs automatically generate a complete policy; treat observed actions as evidence for a candidate least-privilege policy.
 
-IAM enforcement and Policy Stream availability depend on the user's LocalStack plan.
+IAM enforcement depends on the user's LocalStack plan.
 
 ## Configure enforcement
 
-Find the active config:
+| Mode | Start-time profile keys | Runtime `state` | Behavior |
+| --- | --- | --- | --- |
+| Disabled (default) | none | `DISABLED` | No IAM checks |
+| Soft | `ENFORCE_IAM = "1"`, `IAM_SOFT_MODE = "1"` | `SOFT_MODE` | Logs violations, allows requests |
+| Enforced | `ENFORCE_IAM = "1"` | `ENFORCED` | Denies unauthorized requests |
 
-```bash
-lstk config path
-```
-
-For soft evaluation, reference a profile that enables enforcement without denying requests:
+Set the starting mode in a profile in the file that `lstk config path` reports. For soft evaluation:
 
 ```toml
 [[containers]]
@@ -48,15 +48,24 @@ Restart after changing the profile:
 lstk restart
 ```
 
-For a one-off run, set the same keys as host environment variables prefixed with `LOCALSTACK_`. `lstk start` forwards host variables carrying that prefix, so an unprefixed `ENFORCE_IAM` never reaches the emulator:
-
-```bash
-LOCALSTACK_ENFORCE_IAM=1 LOCALSTACK_IAM_SOFT_MODE=1 lstk start
-```
-
-Keys inside an `[env.*]` profile take no prefix.
+Keys inside an `[env.*]` profile take no `LOCALSTACK_` prefix.
 
 Use soft mode first when discovering required permissions. Use enforced mode when testing that unauthorized calls really fail.
+
+### Switch modes without restarting
+
+The IAM config endpoint reads and changes the mode on a running emulator, so enforcement can flip between test runs without a restart:
+
+```bash
+# Current mode
+curl -s localhost:4566/_aws/iam/config | jq .state
+
+# Change it: ENFORCED, SOFT_MODE, or DISABLED
+curl -s -X POST localhost:4566/_aws/iam/config \
+  -H 'Content-Type: application/json' -d '{"state":"SOFT_MODE"}'
+```
+
+The runtime change lasts until the emulator restarts; the profile sets the default.
 
 ## Create principals and policies
 
@@ -85,11 +94,18 @@ lstk aws s3 ls
 ## Investigate a denial
 
 1. Reproduce the request with the intended principal.
-2. Inspect the policy-engine and request lines:
+2. Pull the denial lines from the verbose logs. LocalStack writes a denial in one of two formats:
+
+```text
+Request for service 'sqs' by principal 'arn:aws:iam::000000000000:role/app' for operation 'SendMessage' denied.
+User: arn:aws:iam::000000000000:role/app is not authorized to perform: sqs:SendMessage on resource: arn:aws:sqs:... because ...
+```
 
 ```bash
-lstk logs --verbose --tail 500 | grep -i 'denied\|accessdenied\|iam'
+lstk logs --verbose --tail 500 | grep -E "for operation '[^']*' denied\.|is not authorized to perform:"
 ```
+
+Some lines also carry `Action '<service:Action>' for '<resource-arn>'`, which pins the resource for a denial.
 
 3. Record the principal, action, resource ARN, explicit denies, and missing allows.
 4. Update the smallest relevant statement.
@@ -97,6 +113,8 @@ lstk logs --verbose --tail 500 | grep -i 'denied\|accessdenied\|iam'
 6. Confirm both the API result and the verbose log.
 
 An explicit deny always wins. Check identity policies, resource policies, permission boundaries, and service-generated calls before broadening permissions.
+
+For a single failing call, App Inspector shows the policy evaluation behind the decision in the span's `events/iam`; see the `localstack-app-inspector` skill.
 
 ## Validate and simulate policies
 
@@ -115,41 +133,14 @@ Treat simulator and validator results as additional evidence; still run the appl
 
 ## Derive least privilege
 
-1. Start with soft mode and a clean test scenario.
-2. Exercise every intended application path.
-3. Collect the observed actions and resource ARNs from verbose logs or the IAM Policy Stream (see [Stream recommended policies](#stream-recommended-policies)).
-4. Group actions by principal and resource scope.
-5. Create a candidate policy with the narrowest useful actions and resources.
-6. Switch to enforced mode and run positive and negative tests.
-7. Review for wildcard actions, wildcard resources, and permissions not exercised by the scenario.
+1. Switch to `SOFT_MODE` with a clean test scenario, so the run completes instead of stopping at the first denial.
+2. Exercise every intended application path once.
+3. Extract each unique principal, action, and resource from the denial lines above. Normalize the action to `service:Operation`; the first format gives service and operation separately.
+4. Group by principal, then write one policy per principal: one statement per resource, listing its actions. Use the exact resource ARN when the log gives one; fall back to `*` only for actions that do not support resource-level permissions, and say so.
+5. Attach the policy, switch to `ENFORCED`, rerun the workload, and repeat until no denial lines remain.
+6. Run negative tests that confirm unauthorized calls fail.
+7. Review for wildcard actions, wildcard resources, and permissions the scenario did not exercise.
 
-The IAM Policy Stream can help summarize observed permissions when the user's plan includes it. It is available in the LocalStack Web Application and, on the command line, through the legacy `localstack` CLI.
+The result covers only the requests actually observed. Paths the scenario never ran stay unverified.
 
-## Stream recommended policies
-
-`lstk` has no top-level `iam` command group — `lstk aws iam` only proxies the AWS CLI — so the CLI form of the Policy Stream comes from the legacy `localstack` CLI. Install it alongside `lstk` when request-level policy recommendations are needed:
-
-```bash
-pip install localstack
-```
-
-Both commands are plain reads against the emulator's normal endpoint, so they work against a container started by `lstk`:
-
-```bash
-# Live stream of recommended policies as requests arrive
-localstack aws iam stream
-localstack aws iam stream --format json
-
-# Aggregated policies for all enforced requests
-localstack aws iam summary
-localstack aws iam summary --output policies.json
-```
-
-`stream` prints, per request, the principal or resource the policy should attach to, followed by the recommended policy. `summary` aggregates the same recommendations per principal or resource; `--follow` keeps it updating and clears the terminal on each refresh. If the emulator is not on the default endpoint, set `LOCALSTACK_HOST` for the legacy CLI.
-
-1. Start the emulator in soft mode.
-2. Run `localstack aws iam stream` in a second terminal.
-3. Exercise the application path under test.
-4. Merge the reported statements into the candidate policy.
-
-The command group is marked preview, and both commands depend on a plan that includes the Policy Stream. These recommendations cover only the requests actually observed, so review them the same way as log-derived actions before treating the result as complete. Without the legacy CLI, derive the same evidence from `lstk logs --verbose`.
+Save a known-good IAM setup with `lstk snapshot save` to restore it after experiments; see the `localstack-state` skill.

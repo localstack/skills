@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "localstack",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Portable agent skills for developing and testing cloud applications with LocalStack through lstk.",
   "author": {
     "name": "LocalStack"

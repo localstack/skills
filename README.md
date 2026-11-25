@@ -8,12 +8,18 @@ This repository is a skills-only [Agent Plugin](https://agent-plugins.org/) targ
 
 | Skill | Description |
 | --- | --- |
-| [localstack](skills/localstack/) | Start, stop, configure, and troubleshoot LocalStack emulators with `lstk` |
-| [localstack-deploy](skills/localstack-deploy/) | Deploy and verify infrastructure through the `lstk` Terraform, CDK, SAM, and AWS CLI proxies |
-| [localstack-state](skills/localstack-state/) | Save, load, inspect, and manage LocalStack snapshots and persistent state |
+| [localstack](skills/localstack/) | Start, stop, configure, and troubleshoot LocalStack emulators with `lstk`, including `lstk doctor` |
+| [localstack-deploy](skills/localstack-deploy/) | Deploy and verify infrastructure with `lstk deploy` and the `lstk` Terraform, CDK, SAM, and AWS CLI proxies |
+| [localstack-infra-test](skills/localstack-infra-test/) | Deploy IaC, validate every resource against live state, and write integration tests |
+| [localstack-state](skills/localstack-state/) | Save, load, inspect, and reset LocalStack snapshots and persistent state |
 | [localstack-logs](skills/localstack-logs/) | Inspect emulator logs and diagnose AWS API or Lambda failures |
-| [localstack-iam](skills/localstack-iam/) | Test IAM enforcement and derive least-privilege policies from observed behavior |
-| [localstack-extensions](skills/localstack-extensions/) | Install, configure, and author in-emulator LocalStack Extensions |
+| [localstack-iam](skills/localstack-iam/) | Switch IAM enforcement and derive least-privilege policies from observed denials |
+| [localstack-app-inspector](skills/localstack-app-inspector/) | Trace requests across services with App Inspector traces, spans, and IAM evaluations |
+| [localstack-chaos](skills/localstack-chaos/) | Inject faults and latency to test resilience |
+| [localstack-replicator](skills/localstack-replicator/) | Replicate resources from a real AWS account into LocalStack |
+| [localstack-snowflake](skills/localstack-snowflake/) | Run the Snowflake emulator and execute SQL against it |
+| [localstack-azure](skills/localstack-azure/) | Run the Azure emulator and drive it with `lstk az` |
+| [localstack-extensions](skills/localstack-extensions/) | Install, discover, and develop in-emulator LocalStack Extensions |
 | [lstk-extensions](skills/lstk-extensions/) | Use and author Git-style `lstk-<name>` CLI extensions |
 
 ## Use as an Agent Plugin
@@ -61,9 +67,9 @@ claude plugin install localstack@localstack-dev
 | --- | --- | --- |
 | `pulumilocal` | `pip install pulumi-local` | Pulumi deployments; `lstk` has no Pulumi proxy |
 | `samlocal` | `pip install aws-sam-cli-local` | Image and container-based Lambda (ECR) deploys and nested CloudFormation stacks, which `lstk sam` does not support |
-| legacy `localstack` CLI | `pip install localstack` | In-emulator LocalStack Extensions, and the `localstack aws iam stream` and `summary` policy generators |
-
-The legacy `localstack` CLI is deprecated and will be removed in a future version; use it only for the gaps above. It manages its own container, so stop one CLI's emulator before starting the other's.
+| `snow` | `pip install snowflake-cli` | The Snowflake emulator |
+| `az` | [Azure CLI install](https://learn.microsoft.com/cli/azure/install-azure-cli) | The Azure emulator through `lstk az` |
+| `curl`, `jq` | Your package manager | The Chaos, App Inspector, Replicator, IAM, and state HTTP APIs |
 
 ## Validate locally
 

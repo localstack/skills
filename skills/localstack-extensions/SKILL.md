@@ -1,163 +1,73 @@
 ---
 name: localstack-extensions
-description: Install, configure, and author in-emulator LocalStack Extensions. Use when adding an Extension to the emulator, browsing the Extensions Library, developing a Python Extension, or debugging one that fails to load. Extensions require the legacy localstack CLI, not lstk.
+description: Install, discover, configure, and develop in-emulator LocalStack Extensions on an lstk-managed emulator. Use when adding an Extension such as MailHog to the emulator, preloading Extensions on start, browsing the Extensions Library, or building a custom Extension.
 ---
 
 # Manage in-emulator LocalStack Extensions
 
-Extensions are Python packages that run inside the LocalStack emulator to add endpoints, integrate third-party tools, and extend platform behavior.
+Extensions are Python packages that run inside the LocalStack emulator to add services and integrations, such as MailHog for SES, TypeDB, or httpbin. They install into a virtualenv on the emulator volume, so they survive restarts.
 
-`lstk` does not manage Extensions. There is no `lstk extensions` command suite, and `lstk` keeps its own volume directory (`lstk volume path`, for example `~/Library/Caches/lstk/volume/localstack-aws`) separate from the legacy volume that Extensions install into, so an emulator started by `lstk` will not load them. Extension workflows must use the legacy `localstack` CLI for both installing Extensions and starting the emulator.
+`lstk` has no `extensions` command; never invent `lstk extensions install`. An `lstk`-managed emulator still runs Extensions: install them through emulator configuration. For Git-style `lstk-<name>` CLI extensions, which are a different mechanism, see the `lstk-extensions` skill.
 
-Prefer `lstk` for every other workflow: lifecycle, IaC, snapshots, and logs. See the `localstack` skill. For Git-style `lstk-<name>` CLI extensions, which are a different mechanism, see the `lstk-extensions` skill.
+Extensions require a running AWS emulator and a license that includes them; see the `localstack` skill.
 
-## Check prerequisites
+## Install on start
 
-Install the legacy CLI, and the `awslocal` wrapper if you want the shorter command form:
+`EXTENSION_AUTO_INSTALL` takes a comma-separated list of package specs and installs them when the emulator starts. Set it in a profile in the file that `lstk config path` reports:
 
-```bash
-pip install localstack
-pip install awscli-local   # optional; or use: aws --endpoint-url=http://localhost:4566
+```toml
+[[containers]]
+type = "aws"
+env = ["extensions"]
+
+[env.extensions]
+EXTENSION_AUTO_INSTALL = "localstack-extension-mailhog,localstack-extension-httpbin==0.2.0"
 ```
 
-`localstack extensions init`, `install`, `uninstall`, and `list` run inside a container; with Docker stopped they fail with `Docker could not be found on the system.` The `dev` subcommands run on the host and do not need a container runtime.
+Then run `lstk start`, or `lstk restart` when the emulator is already running. A committed `.lstk/config.toml` gives every teammate and CI run the same Extensions.
 
-Do not run `lstk start` and `localstack start` at the same time. Each manages its own container and they conflict on port 4566. Stop one before starting the other with `lstk stop` or `localstack stop`.
+Use package specs only: `name`, `name[extra]`, or `name==version`. Git URLs are not supported.
 
-The legacy `localstack` CLI is deprecated and will be removed in a future version. Use it only for the workflows on this page.
+## Discover Extensions
 
-## Install and remove Extensions
-
-The `localstack extensions` command group is a preview feature. Its own help text warns that the feature and the API may change, so confirm the available commands with `localstack extensions --help` rather than assuming a fixed list.
-
-Prepare the extensions environment inside the volume:
+Browse the [Extensions Library](https://app.localstack.cloud/extensions/library), or query the marketplace with the auth token as the password and an empty username:
 
 ```bash
-localstack extensions init
+curl -s -u ":$LOCALSTACK_AUTH_TOKEN" https://api.localstack.cloud/v1/extensions/marketplace \
+  | jq '.[] | {name, version, author, summary}'
 ```
 
-It installs into `lib/extensions` under the volume directory resolved from `LOCALSTACK_VOLUME_DIR`.
+## Run an Extension: MailHog
 
-List what is installed:
-
-```bash
-localstack extensions list
-```
-
-Install from PyPI, a pinned version, or a Git repository:
+With `localstack-extension-mailhog` in the profile above:
 
 ```bash
-localstack extensions install localstack-extension-name
-localstack extensions install localstack-extension-name==1.0.0
-localstack extensions install "git+https://github.com/org/extension-repo.git"
-```
+lstk start
 
-Remove one:
-
-```bash
-localstack extensions uninstall localstack-extension-name
-```
-
-Extensions are enabled once installed. Disable one for a single run with its environment variable:
-
-```bash
-EXTENSION_NAME_ENABLED=0 localstack start -d
-```
-
-## Discover available Extensions
-
-Browse the [Extensions Library](https://app.localstack.cloud/extensions/library) and the [Extensions documentation](https://docs.localstack.cloud/aws/capabilities/extensions/).
-
-## Run an Extension
-
-Install the Extension, then start the emulator with the legacy CLI so it is loaded:
-
-```bash
-localstack extensions install localstack-extension-mailhog
-localstack start -d
-```
-
-Reach the Extension's own interface and exercise the service it hooks:
-
-```bash
-open http://localhost:8025
-
-awslocal ses send-email \
+lstk aws ses verify-email-identity --email-address sender@example.com
+lstk aws ses send-email \
   --from sender@example.com \
-  --to recipient@example.com \
-  --subject "Test" \
-  --text "Hello"
+  --destination ToAddresses=recipient@example.com \
+  --message 'Subject={Data=Test},Body={Text={Data=Hello}}'
+
+# Captured mail; either URL works
+open http://mailhog.localhost.localstack.cloud:4566
+open http://localhost:4566/mailhog/
 ```
+
+MailHog configures the SES SMTP target automatically. Other Extensions document their own URLs and settings on their library page.
 
 ## Configure an Extension
 
-Pass environment variables to `localstack start`:
+Extensions read their settings from emulator environment variables. Put them in the same `[env.*]` profile, without a `LOCALSTACK_` prefix, and restart.
 
-```bash
-# General pattern
-EXTENSION_<NAME>_<SETTING>=value localstack start -d
+## Develop a custom Extension
 
-# Example
-EXTENSION_MAILHOG_PORT=8025 localstack start -d
-```
-
-The legacy CLI takes these variables without the `LOCALSTACK_` prefix that `lstk` requires.
-
-## Author an Extension
-
-Scaffold from the official extension template:
-
-```bash
-localstack extensions dev new
-```
-
-The template is rendered with cookiecutter, so install that first with `pip install cookiecutter`. The new Extension is created in the current working directory. Pass `--template` to pick a template other than the default `basic`.
-
-Lay the package out so the Extension class is importable:
-
-```text
-my-extension/
-├── setup.py
-└── my_extension/
-    ├── __init__.py
-    └── extension.py
-```
-
-Subclass `Extension` and implement the hooks you need:
-
-```python
-# extension.py
-from localstack.extensions.api import Extension, http
-
-class MyExtension(Extension):
-    name = "my-extension"
-
-    def on_extension_load(self):
-        print("Extension loaded!")
-
-    def on_platform_start(self):
-        print("LocalStack is starting!")
-
-    @http.route("/my-endpoint")
-    def my_endpoint(self, request):
-        return {"message": "Hello from extension!"}
-```
-
-Install from the source tree and use the developer helpers while iterating. `install` takes a positional name; a `file://` prefix installs a distribution from disk, and `file://.` treats the current directory as one:
-
-```bash
-localstack extensions install file://.
-
-localstack extensions dev enable ./my-extension
-localstack extensions dev list
-localstack extensions dev disable ./my-extension
-```
+Start from an existing Extension in [localstack/localstack-extensions](https://github.com/localstack/localstack-extensions); each one is a complete, buildable example of the Extension API. To ship one, publish the package to PyPI and add it to `EXTENSION_AUTO_INSTALL`.
 
 ## Diagnose a failing Extension
 
-- **Extension not loading**: confirm you started the emulator with `localstack start`, not `lstk start`. `lstk` uses a different volume directory and will not see installed Extensions.
-- **Port conflict on 4566**: an `lstk`-managed container may still be running. Run `lstk stop` first.
-- **Errors on startup**: check `localstack logs` for Extension stack traces.
-- **Two Extensions interfering**: disable one to isolate the failure.
-- **Version mismatch**: confirm the Extension supports your LocalStack version.
-- **Docker Compose setups**: point `LOCALSTACK_VOLUME_DIR` at the LocalStack volume on your host, `~/.cache/localstack/volume` on Linux or `~/Library/Caches/localstack/volume` on macOS, so the CLI installs into the volume the emulator mounts.
+- **Extension not active**: confirm the `extensions` profile is listed in the container block's `env`, that `lstk config path` shows the file you edited, then run `lstk restart`.
+- **Errors on startup**: run `lstk logs --verbose | grep -i extension` and read the stack trace.
+- **Two Extensions interfering**: remove one from `EXTENSION_AUTO_INSTALL` to isolate the failure.
+- **Version mismatch**: pin a version compatible with the emulator image `tag`.

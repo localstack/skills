@@ -1,6 +1,6 @@
 ---
 name: localstack-deploy
-description: Deploy and verify AWS infrastructure through lstk's Terraform, CDK, SAM, and AWS CLI proxies, including CloudFormation stacks and the Pulumi gap that still needs pulumilocal. Use when running IaC or CloudFormation against LocalStack, deploying Pulumi to LocalStack, or replacing tflocal, cdklocal, samlocal, and awslocal workflows.
+description: Deploy and verify AWS infrastructure through lstk's Terraform, CDK, SAM, and AWS CLI proxies, including CloudFormation stacks and the Pulumi gap that still needs pulumilocal. Use when running IaC or CloudFormation against LocalStack, checking which resources LocalStack supports before a deploy, using lstk deploy, deploying Pulumi to LocalStack, or replacing tflocal, cdklocal, samlocal, and awslocal workflows.
 ---
 
 # Deploy infrastructure through lstk
@@ -23,6 +23,29 @@ Install the standard CLI required by the workflow:
 
 Do not install the `tflocal`, `cdklocal`, `samlocal`, or `awslocal` wrappers when `lstk` already covers the workflow.
 
+## Check support before deploying
+
+`lstk deploy detect` scans a workspace without deploying. It reports which IaC tool the project uses and which resources LocalStack, or the user's license, does not support. Run it first on an unfamiliar project:
+
+```bash
+lstk deploy detect --dir ./infra
+lstk deploy detect --dir ./infra --unsupported   # list every unsupported resource
+lstk deploy detect --dir ./infra --explain       # show the evidence behind the decision
+```
+
+## Deploy with one command
+
+`lstk deploy` detects Terraform, CDK, or SAM/CloudFormation and runs the matching `lstk` proxy:
+
+```bash
+lstk deploy
+lstk deploy --dir ./infra
+lstk deploy --dir ./infra --tool tf      # force the tool: terraform (tf), cdk, or sam
+lstk deploy --template template.yaml     # SAM/CloudFormation template; implies --tool sam
+```
+
+Use the per-tool commands below when the workflow needs tool-specific flags such as variables, stack names, or destroy.
+
 ## Terraform and OpenTofu
 
 Run the normal Terraform lifecycle:
@@ -32,6 +55,13 @@ lstk terraform init
 lstk terraform plan
 lstk terraform apply
 lstk terraform destroy
+```
+
+Pass variables with `-var`, and read outputs as JSON for follow-up probes:
+
+```bash
+lstk terraform apply -auto-approve -var env=dev -var bucket_name=my-bucket
+lstk terraform output -json
 ```
 
 Place `lstk`-specific flags before the Terraform action:
@@ -68,6 +98,13 @@ lstk cdk deploy
 lstk cdk destroy
 ```
 
+Deploy without prompts in automation, and pass context values with `-c`:
+
+```bash
+lstk cdk deploy --all --require-approval never -c env=dev
+lstk cdk destroy --all --force
+```
+
 Place the region flag before the action:
 
 ```bash
@@ -84,6 +121,18 @@ Override the CDK binary with `LSTK_CDK_CMD`, default `cdk`.
 lstk sam build
 lstk sam validate
 lstk sam deploy --guided
+```
+
+`--guided` prompts. For agents and CI, skip the changeset prompt and let SAM create its artifact bucket:
+
+```bash
+lstk sam build --cached
+lstk sam deploy --stack-name my-app \
+  --no-confirm-changeset --no-fail-on-empty-changeset \
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+  --resolve-s3
+
+lstk sam delete --stack-name my-app --no-prompts
 ```
 
 Place LocalStack flags before the SAM action:
@@ -116,6 +165,15 @@ lstk aws cloudformation update-stack \
 
 lstk aws cloudformation delete-stack \
   --stack-name my-stack
+```
+
+`create-stack` and `delete-stack` return before the work finishes. Wait for the terminal state, and read the failed events when it does not succeed:
+
+```bash
+lstk aws cloudformation wait stack-create-complete --stack-name my-stack
+lstk aws cloudformation wait stack-delete-complete --stack-name my-stack
+lstk aws cloudformation describe-stack-events --stack-name my-stack \
+  --query 'StackEvents[?contains(ResourceStatus, `FAILED`)]'
 ```
 
 ## Configure a profile for unwrapped tools
@@ -156,6 +214,8 @@ The endpoint must identify an AWS emulator for these proxies.
 
 Automation that cannot place a flag before every command can set the same target with `LSTK_ENDPOINT_URL`, or with `AWS_ENDPOINT_URL`, which has lower precedence when both are set.
 
+Without an explicit endpoint, the proxies use `localhost.localstack.cloud` when it resolves to `127.0.0.1` and fall back to `127.0.0.1:4566` otherwise. Set `LOCALSTACK_HOST` to override the host.
+
 `lstk cdk` and `lstk sam` also read `AWS_ENDPOINT_URL_S3`, which overrides the S3 endpoint alone. Set it alongside the endpoint variable on a host where `localhost.localstack.cloud` does not resolve: `lstk cdk` warns and falls back to `127.0.0.1` there, and CDK S3 asset operations such as `bootstrap` and asset deploys can fail without a virtual-host-capable address.
 
 ## Verify the deployment
@@ -168,5 +228,7 @@ lstk aws cloudformation describe-stacks
 lstk aws s3 ls
 lstk aws lambda list-functions
 ```
+
+When a deploy fails, pull the real error from the emulator logs; see the `localstack-logs` skill. To validate every declared resource and generate integration tests, see the `localstack-infra-test` skill. Save a deployed baseline with `lstk snapshot save` to restore it instead of redeploying; see the `localstack-state` skill.
 
 Before `apply`, `deploy`, `destroy`, or delete operations, surface the expected changes and obtain any approval the user requires.
