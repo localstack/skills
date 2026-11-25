@@ -94,7 +94,7 @@ curl -s "$AI/traces/*/spans/*/events/iam?name=iam.policy.denied&limit=20" \
            principal: .p.principal_arn, enforcement: .p.enforcement, outcome: .p.suggestion.outcome}'
 ```
 
-Requests to STS, IAM, and CloudWatch Logs, and `sqs:GetQueueUrl`, `sqs:GetQueueAttributes`, and `cloudwatch:PutMetricData`, are not recorded, so their denials never appear. A role's trust policy failing `sts:AssumeRole` is the common case; find it in the logs instead (`localstack-iam` skill).
+Requests to STS, IAM, and CloudWatch Logs, and `sqs:GetQueueUrl`, `sqs:GetQueueAttributes`, and `cloudwatch:PutMetricData`, are not recorded, so their denials never appear. A role's trust policy failing `sts:AssumeRole` is the common case; find it with the IAM Policy Stream instead (`localstack-iam` skill).
 
 An empty list does not prove that nothing was denied. Read one span with `GET /traces/*/spans?limit=1`: `iam_errors_suppressed: true` means the license hides IAM events, and no spans at all means nothing was recorded. Events named `iam.policy.error` count evaluations that failed.
 

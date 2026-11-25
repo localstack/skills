@@ -116,38 +116,46 @@ lstk aws iam create-policy \
 
 Start with App Inspector for any permission error. LocalStack records each denied request with the policies that decided it, including another account's policies that you cannot read, and a suggested fix. It also derives least-privilege policies from a run. See the "Explain IAM denials" and "Derive least-privilege policies" sections of the `localstack-app-inspector` skill.
 
-Use the logs below only for what App Inspector does not cover: requests to STS, IAM, and CloudWatch Logs (for example a trust policy failing `sts:AssumeRole`), and a license or image without App Inspector's IAM events.
+Use the Policy Stream below for what App Inspector does not record, such as requests to STS and IAM (for example a trust policy failing `sts:AssumeRole`), and when the license or image has no App Inspector IAM events.
 
-### Detect violations in the logs
+### Detect violations with the Policy Stream
 
-1. Enable soft or enforced mode
-2. Run your application
-3. Pull the denials from the logs (`-v` disables `lstk`'s default log filtering)
+`GET /_aws/iam/policies/stream` streams one JSON line for every request IAM evaluates, while the connection stays open. It needs IAM evaluation on (`SOFT_MODE`, `ENFORCED`, or `ENGINE_ONLY`) and a license that includes the IAM Policy Stream.
 
-LocalStack writes a denial in one of two formats:
-
-```
-Request for service 'sqs' by principal 'arn:aws:iam::000000000000:role/app' for operation 'SendMessage' denied.
-User: arn:aws:iam::000000000000:role/app is not authorized to perform: sqs:SendMessage on resource: arn:aws:sqs:... because ...
-```
+Open the stream before running the workload; it shows only requests made while it is connected:
 
 ```bash
-lstk logs -v | grep -E "for operation '[^']*' denied\.|is not authorized to perform:"
+curl -sN localhost:4566/_aws/iam/policies/stream > iam-stream.jsonl &
+# run the workload, then stop the stream
+kill %1
 ```
 
-Some lines also carry `Action '<service:Action>' for '<resource-arn>'`, which pins the resource for a denial.
+Each line holds:
 
-### Generate a policy from the denials
+- `request`: `service`, `operation`, `parameters`, `id`, `internal`, and `allowed`, which is `false` when IAM denies the request, even in a mode that lets it through
+- `resource`: the principal ARN for an `identity` policy, or the resource ARN for a `resource` policy, such as a Lambda's resource policy for a service principal
+- `policy_type`: `identity` or `resource`
+- `policy_document`: the least-privilege policy for `resource` that allows every request seen so far for it, not only this one
 
-Prefer the policies LocalStack derives (see above). Without them:
+Violations are the lines where `request.allowed` is `false`:
 
-1. Switch to `SOFT_MODE`, so the run completes instead of stopping at the first denial.
-2. Exercise the full workload once.
-3. Extract each unique **(principal, action, resource)** from the denial lines above. Normalize the action to `service:Operation` (the first format gives service and operation separately).
-4. Group by principal, then write one policy per principal: one statement per resource, listing its actions. Use the exact resource ARN when the log gives one; fall back to `*` only for actions that do not support resource-level permissions, and say so.
-5. Attach the policy, switch to `ENFORCED`, rerun the workload, and repeat until no denials remain.
+```bash
+jq -c 'select(.request.allowed == false)
+  | {principal: .resource, type: .policy_type, call: "\(.request.service).\(.request.operation)",
+     allow: [.policy_document.Statement[] | {Action, Resource}]}' iam-stream.jsonl
+```
 
-Done when an enforced run produces no denial lines.
+The stream also carries every allowed request, including the root user's own calls, so always filter. A cross-account request produces two lines: an identity policy for the caller and a resource policy for the target. Add `?include_evaluation_failures=1` to also stream requests whose evaluation raised an error; those lines carry `evaluation_failed: true`, `error_type`, and `error_message` instead of a policy, and LocalStack let them through unchecked.
+
+### Generate a policy from the stream
+
+1. Switch to `SOFT_MODE` or `ENGINE_ONLY`, so the run completes instead of stopping at the first denial.
+2. Clear the summary with `curl -s -X DELETE localhost:4566/_aws/iam/policies/summary`, then exercise the full workload once.
+3. Read the result with `curl -s localhost:4566/_aws/iam/policies/summary | jq`: one entry per `resource`, with its `policy_type` and merged `policy_document`. From a saved stream instead, take the last line for each `resource`, since every line holds the merged document so far.
+4. Attach each policy to its principal or resource in the IaC. Statements with a `Principal` belong in a resource policy or a role's trust policy.
+5. Switch to `ENFORCED`, rerun the workload, and repeat until the stream shows no `"allowed": false` lines.
+
+The policies cover only the requests observed, and their `Sid` values are generated. Review them for wildcards before use.
 
 ## Testing Policies
 
