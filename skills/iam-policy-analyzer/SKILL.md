@@ -1,6 +1,6 @@
 ---
 name: localstack-iam
-description: Analyze and enforce IAM policies in LocalStack. Use when users want to enable IAM enforcement, detect permission violations, auto-generate least-privilege policies, or test IAM policies locally before deploying to AWS.
+description: Analyze and enforce IAM policies in LocalStack. Use when users want to enable or switch IAM enforcement, detect permission violations, fix an access denial, auto-generate least-privilege policies, or test IAM policies locally before deploying to AWS.
 ---
 
 # IAM Policy Analyzer
@@ -46,6 +46,9 @@ To change the mode on a running emulator without touching config, use the [runti
 | Disabled (default) | unset, or `ENFORCE_IAM = "0"` | `DISABLED` | No IAM checks |
 | Soft | `ENFORCE_IAM = "1"`, `IAM_SOFT_MODE = "1"` | `SOFT_MODE` | Logs violations, allows requests |
 | Enforced | `ENFORCE_IAM = "1"` | `ENFORCED` | Denies unauthorized requests |
+| Engine only | none; set at runtime | `ENGINE_ONLY` | Evaluates policies and records denials in App Inspector, but neither blocks nor logs them |
+
+Enabling App Inspector moves the mode from `DISABLED` to `ENGINE_ONLY`, so denials are recorded without enforcement. Never switch to `ENFORCED` just to see denials; it can break a workload that works.
 
 ### Switch modes without restarting
 
@@ -55,7 +58,7 @@ The IAM config endpoint reads and changes the mode on a running emulator, so you
 # Current mode
 curl -s localhost:4566/_aws/iam/config | jq .state
 
-# Change it: ENFORCED, SOFT_MODE, or DISABLED
+# Change it: ENFORCED, SOFT_MODE, ENGINE_ONLY, or DISABLED
 curl -s -X POST localhost:4566/_aws/iam/config \
   -H 'Content-Type: application/json' -d '{"state":"SOFT_MODE"}'
 ```
@@ -109,7 +112,13 @@ lstk aws iam create-policy \
 
 ## Policy Analysis
 
-### Detect Violations
+### Explain a denial with App Inspector
+
+Start with App Inspector for any permission error. LocalStack records each denied request with the policies that decided it, including another account's policies that you cannot read, and a suggested fix. It also derives least-privilege policies from a run. See the "Explain IAM denials" and "Derive least-privilege policies" sections of the `localstack-app-inspector` skill.
+
+Use the logs below only for what App Inspector does not cover: requests to STS, IAM, and CloudWatch Logs (for example a trust policy failing `sts:AssumeRole`), and a license or image without App Inspector's IAM events.
+
+### Detect violations in the logs
 
 1. Enable soft or enforced mode
 2. Run your application
@@ -130,6 +139,8 @@ Some lines also carry `Action '<service:Action>' for '<resource-arn>'`, which pi
 
 ### Generate a policy from the denials
 
+Prefer the policies LocalStack derives (see above). Without them:
+
 1. Switch to `SOFT_MODE`, so the run completes instead of stopping at the first denial.
 2. Exercise the full workload once.
 3. Extract each unique **(principal, action, resource)** from the denial lines above. Normalize the action to `service:Operation` (the first format gives service and operation separately).
@@ -137,8 +148,6 @@ Some lines also carry `Action '<service:Action>' for '<resource-arn>'`, which pi
 5. Attach the policy, switch to `ENFORCED`, rerun the workload, and repeat until no denials remain.
 
 Done when an enforced run produces no denial lines.
-
-For a single failing call, App Inspector shows the policy evaluation behind the decision (`events/iam` on the span) — see the `localstack-app-inspector` skill.
 
 ## Testing Policies
 
@@ -163,6 +172,7 @@ lstk aws accessanalyzer validate-policy \
 
 ## Best Practices
 
+- Read denials and suggested fixes in App Inspector before changing a policy
 - Start with soft enforcement to discover required permissions
 - Flip modes at runtime through `/_aws/iam/config` between runs instead of restarting
 - Use least-privilege principles when creating policies
