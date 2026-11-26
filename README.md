@@ -10,12 +10,20 @@ This repository contains a collection of AI skills designed to help developers w
 
 | Skill | Description |
 |-------|-------------|
-| [localstack-lifecycle](skills/localstack-lifecycle/) | Manage the emulator lifecycle with `lstk` (start, stop, status, restart, reset) |
-| [iac-deployment](skills/iac-deployment/) | Deploy infrastructure using Terraform, CDK, CloudFormation, SAM, and Pulumi |
-| [state-management](skills/state-management/) | Save, load, and manage LocalStack state with snapshots and Cloud Pods |
+| [localstack-lifecycle](skills/localstack-lifecycle/) | Manage the emulator lifecycle with `lstk` (start, stop, status, restart, reset, doctor) |
+| [iac-deployment](skills/iac-deployment/) | Deploy infrastructure using `lstk deploy`, Terraform, CDK, CloudFormation, SAM, and Pulumi |
+| [infrastructure-testing](skills/infrastructure-testing/) | Deploy IaC, validate every resource against live state, and write integration tests |
+| [state-management](skills/state-management/) | Save, load, inspect, and reset LocalStack state with snapshots and Cloud Pods |
 | [logs-analysis](skills/logs-analysis/) | Analyze LocalStack logs, identify errors, and debug issues |
-| [iam-policy-analyzer](skills/iam-policy-analyzer/) | Analyze IAM policies and auto-generate least-privilege permissions |
-| [localstack-extensions](skills/localstack-extensions/) | Manage LocalStack extensions and plugins (legacy CLI) |
+| [iam-policy-analyzer](skills/iam-policy-analyzer/) | Switch IAM enforcement and generate least-privilege policies from denials |
+| [app-inspector](skills/app-inspector/) | Trace requests across services with App Inspector traces, spans, and IAM evaluations |
+| [chaos-engineering](skills/chaos-engineering/) | Inject faults and latency to test resilience |
+| [aws-replicator](skills/aws-replicator/) | Replicate resources from a real AWS account into LocalStack |
+| [localstack-extensions](skills/localstack-extensions/) | Install, list, and discover LocalStack Extensions |
+| [snowflake](skills/snowflake/) | Run the Snowflake emulator and execute SQL with the `snow` CLI |
+| [azure](skills/azure/) | Run the Azure emulator and drive it with `lstk az` |
+
+These skills cover the same ground as the [LocalStack MCP Server](https://github.com/localstack/localstack-mcp-server), using `lstk` and the emulator's HTTP APIs instead of MCP tools.
 
 ## Installation
 
@@ -53,9 +61,9 @@ The `lstk` CLI does not cover every workflow yet. Install these only if you need
 |------|---------|-----------|
 | `pulumilocal` | `pip install pulumi-local` | Pulumi deployments — `lstk` has no Pulumi proxy |
 | `samlocal` | `pip install aws-sam-cli-local` | Image/container-based Lambda (ECR) deploys and nested CloudFormation stacks, which `lstk sam` does not support |
-| legacy `localstack` CLI | `pip install localstack` | LocalStack Extensions, and the `localstack aws iam stream` / `summary` policy generators |
-
-The legacy `localstack` CLI is deprecated and will be removed in a future version — use it only for the gaps listed above. It manages its own container, so stop one CLI's emulator before starting the other's.
+| `snow` | `pip install snowflake-cli` | The Snowflake emulator |
+| `az` | [Azure CLI install](https://learn.microsoft.com/cli/azure/install-azure-cli) | The Azure emulator (`lstk az`) |
+| `curl`, `jq` | your package manager | Chaos, App Inspector, Replicator, and other HTTP APIs |
 
 ## Usage
 

@@ -1,6 +1,6 @@
 ---
 name: localstack-deploy
-description: Deploy infrastructure to LocalStack using IaC tools. Use when users want to deploy Terraform, CDK, CloudFormation, SAM, or Pulumi to LocalStack, or need help with the lstk proxy commands (lstk terraform, lstk cdk, lstk sam, lstk aws) or the pulumilocal wrapper.
+description: Deploy infrastructure to LocalStack using IaC tools. Use when users want to deploy Terraform, CDK, CloudFormation, SAM, or Pulumi to LocalStack, check which resources LocalStack supports before deploying, or need help with lstk deploy, the lstk proxy commands (lstk terraform, lstk cdk, lstk sam, lstk aws), or the pulumilocal wrapper.
 ---
 
 # Infrastructure as Code Deployment
@@ -23,6 +23,29 @@ Deploy AWS infrastructure to LocalStack using popular IaC tools including Terraf
 
 `lstk` replaces the old `awslocal` / `tflocal` / `cdklocal` / `samlocal` wrappers — you no longer need to `pip install`/`npm install` them. Pulumi is the exception; see [Pulumi](#pulumi).
 
+## Check before deploying
+
+`lstk deploy detect` scans a workspace without deploying and reports which IaC tool it uses and which resources LocalStack — or your license — does not support. Run it first on an unfamiliar project:
+
+```bash
+lstk deploy detect --dir ./infra
+lstk deploy detect --dir ./infra --unsupported   # list every unsupported resource
+lstk deploy detect --dir ./infra --explain       # show the evidence behind the decision
+```
+
+## One-command deploy
+
+`lstk deploy` detects the tool (Terraform, CDK, or SAM/CloudFormation) and runs it through the matching `lstk` proxy:
+
+```bash
+lstk deploy                              # current directory
+lstk deploy --dir ./infra
+lstk deploy --dir ./infra --tool tf      # force the tool: terraform (tf), cdk, sam
+lstk deploy --template template.yaml     # SAM/CloudFormation template; implies --tool sam
+```
+
+Use the per-tool commands below when you need tool-specific flags (variables, stack names, destroy).
+
 ## Terraform
 
 ### Using `lstk terraform` (Preferred)
@@ -37,6 +60,13 @@ lstk terraform destroy -auto-approve
 
 # Short alias
 lstk tf apply -auto-approve
+```
+
+Pass variables with `-var` and read outputs as JSON for follow-up probes:
+
+```bash
+lstk terraform apply -auto-approve -var env=dev -var bucket_name=my-bucket
+lstk terraform output -json
 ```
 
 `lstk`-specific flags go **before** the Terraform subcommand:
@@ -98,6 +128,9 @@ lstk cdk deploy MyStack
 # Synthesize
 lstk cdk synth
 
+# Pass context values
+lstk cdk deploy --all --require-approval never -c env=dev
+
 # Destroy
 lstk cdk destroy --all --force
 ```
@@ -128,6 +161,15 @@ lstk aws cloudformation delete-stack --stack-name my-stack
 lstk aws cloudformation describe-stacks --stack-name my-stack
 ```
 
+`create-stack` and `delete-stack` return before the work finishes. Wait for the terminal state, and read the stack events when it fails:
+
+```bash
+lstk aws cloudformation wait stack-create-complete --stack-name my-stack
+lstk aws cloudformation wait stack-delete-complete --stack-name my-stack
+lstk aws cloudformation describe-stack-events --stack-name my-stack \
+  --query 'StackEvents[?contains(ResourceStatus, `FAILED`)]'
+```
+
 If you would rather use the plain `aws` CLI, run `lstk setup aws` once to write a `localstack` profile into `~/.aws/config` and `~/.aws/credentials`, then use `aws --profile localstack ...`.
 
 ## AWS SAM
@@ -142,6 +184,18 @@ lstk sam --region us-west-2 deploy
 ```
 
 `lstk sam` accepts `--region <region>` (default `us-east-1`) and `--account <id>` (default `000000000000`) before the SAM command.
+
+For a non-interactive deploy (agents, CI), skip the changeset prompt and let SAM create its artifact bucket:
+
+```bash
+lstk sam build --cached
+lstk sam deploy --stack-name my-app \
+  --no-confirm-changeset --no-fail-on-empty-changeset \
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+  --resolve-s3          # or --s3-bucket <bucket>
+
+lstk sam delete --stack-name my-app --no-prompts
+```
 
 **Limitation:** image/container-based Lambda (ECR) deploys and nested CloudFormation stacks are not supported by `lstk sam`. For those workflows, install the `samlocal` wrapper (`pip install aws-sam-cli-local`) and use it instead.
 
@@ -191,3 +245,5 @@ pulumi destroy --yes
 - Use `lstk start --persist` to retain state across LocalStack restarts
 - Snapshot deployed infrastructure with `lstk save` so you can restore it instantly instead of re-deploying — see the `localstack-state` skill
 - In CI, add `--non-interactive` to `lstk` commands and set `LOCALSTACK_AUTH_TOKEN`
+- After a deploy, confirm the resources with `lstk status` or targeted `lstk aws` describe calls; when a deploy fails, pull the error from the logs (`localstack-logs` skill)
+- To validate a whole stack and generate integration tests for it, see the `localstack-infra-test` skill

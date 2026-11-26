@@ -65,17 +65,7 @@ lstk config path      # the lstk.log sits alongside this file
 
 ## Debug Mode
 
-`lstk` forwards host environment variables **prefixed with `LOCALSTACK_`** into the emulator, so LocalStack config variables need that prefix:
-
-```bash
-# Start with debug mode
-LOCALSTACK_DEBUG=1 lstk start
-
-# Trace-level logging
-LOCALSTACK_LS_LOG=trace lstk start
-```
-
-To make debug logging the default for a project, use an environment profile in `config.toml`:
+Turn on verbose logging with an environment profile in `config.toml`, then `lstk restart`:
 
 ```toml
 [[containers]]
@@ -84,9 +74,11 @@ env  = ["debug"]
 
 [env.debug]
 DEBUG = "1"
+LS_LOG = "trace"         # optional: request/response-level detail
+LAMBDA_DEBUG = "1"       # optional: Lambda debugging
 ```
 
-Keys inside an `[env.*]` profile do not need the `LOCALSTACK_` prefix.
+Remove `"debug"` from `env` when you are done; trace logging is noisy. For a single throwaway run, `LOCALSTACK_DEBUG=1 lstk start` also works, but it is lost on the next plain `lstk restart` — see the `localstack` skill.
 
 ## Analyzing API Requests
 
@@ -114,12 +106,36 @@ lstk status
 lstk --non-interactive status
 ```
 
+### Structured Analysis
+
+Pick the view that matches the question:
+
+```bash
+# Summary: how many calls, how many failed, the latest failures
+lstk logs -v -n 2000 | grep -cE "AWS [a-z0-9-]+\.[A-Za-z]+ =>"
+lstk logs -v -n 2000 | grep -E "AWS [a-z0-9-]+\.[A-Za-z]+ => [45][0-9]{2}" | tail -5
+
+# Errors: failed calls grouped by service.operation and status, most frequent first
+lstk logs -v -n 2000 | grep -oE "AWS [a-z0-9-]+\.[A-Za-z]+ => [45][0-9]{2}( \([A-Za-z]+\))?" \
+  | sort | uniq -c | sort -rn
+
+# Requests: every call to one operation, in order
+lstk logs -v | grep -E "AWS dynamodb\.PutItem =>"
+
+# Raw: stack traces and ERROR lines around a failure
+lstk logs -v -n 2000 | grep -E -B2 -A15 "ERROR|Traceback"
+```
+
+Group errors before reading them: one root cause usually produces many identical lines, and the count tells you which one matters.
+
 ### Common Error Patterns
 
 | Error | Possible Cause | Solution |
 |-------|---------------|----------|
 | `ResourceNotFoundException` | Resource doesn't exist | Create the resource first; confirm with `lstk status` |
-| `AccessDeniedException` | IAM policy issue | Check IAM enforcement mode |
+| `AccessDeniedException` / `... is not authorized to perform` | IAM enforcement denied the call | Generate the missing policy — see the `localstack-iam` skill |
+| `501` / `NotImplemented` | Operation not covered by LocalStack | Check the service's coverage page on docs.localstack.cloud |
+| Unexpected `5xx` with a chaos rule active | Injected fault | `curl -s localhost:4566/_localstack/chaos/faults` — see the `localstack-chaos` skill |
 | `ValidationException` | Invalid parameters | Verify request parameters |
 | `ServiceException` | Internal error | Check LocalStack logs for details |
 
@@ -138,11 +154,7 @@ lstk aws logs get-log-events \
   --log-stream-name <stream-name>
 ```
 
-### Enable Lambda Debug Mode
-
-```bash
-LOCALSTACK_LAMBDA_DEBUG=1 lstk start
-```
+For Lambda debug mode, add `LAMBDA_DEBUG = "1"` to the debug profile above.
 
 ## Health Check
 
@@ -158,7 +170,8 @@ curl http://localhost:4566/_localstack/health | jq '.services.s3'
 
 - **No logs appearing**: Ensure the emulator is running (`lstk status`)
 - **Expected line missing**: Re-run with `lstk logs -v` — the default view is filtered
-- **Missing debug info**: Start with `LOCALSTACK_DEBUG=1` for verbose logging
+- **Missing debug info**: Enable the `debug` profile in `config.toml` and `lstk restart`
 - **Lambda issues**: Check both the emulator logs and CloudWatch Logs
 - **Intermittent errors**: Look for resource limits or timing issues
 - **CLI-level problems**: Check `lstk.log` in the directory reported by `lstk config path`
+- **Failure spans several services** (Lambda → SQS → DynamoDB): logs show each hop separately; App Inspector links them into one trace — see the `localstack-app-inspector` skill
